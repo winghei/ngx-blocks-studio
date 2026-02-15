@@ -9,7 +9,8 @@ docs/
 ├── README.md           # This index
 └── core/               # Core library documentation
     ├── registry.md     # ComponentRegistry, GuardRegistry, ServiceRegistry, metadata
-    └── router-loader.md # RouteLoader, RouteConfig, loading routes from config
+    ├── dynamic-loader.md # BlockDirective, dynamic loader, block registry, model expressions
+    └── router-loader.md # RouteLoader, RouteConfig, loading routes from JSON
 ```
 
 ## Contents
@@ -17,6 +18,7 @@ docs/
 | Document | Description |
 |----------|-------------|
 | [Core → Registry](core/registry.md) | Component, guard, and service registries, unified metadata store, lazy loading |
+| [Core → Dynamic loader](core/dynamic-loader.md) | BlockDirective, descriptor (id, input, model), block registry, {{}} / [()] model expressions, layout contract |
 | [Core → Route loader](core/router-loader.md) | RouteLoader service, RouteConfig / RouteConfigFile, loading routes from JSON |
 
 ## Adding documentation

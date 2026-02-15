@@ -145,6 +145,68 @@ export class ServiceRegistry {
   }
 
   /**
+   * Get the service Type (class) by name (supports lazy loading).
+   * Use this to scope the provider to a child injector (e.g. "self" context).
+   */
+  async getType(name: string): Promise<Type<any> | undefined> {
+    if (this.loadedServices.has(name)) {
+      return this.loadedServices.get(name);
+    }
+
+    const serviceOrLoader = this.services.get(name);
+    if (!serviceOrLoader) {
+      console.error(`Service "${name}" not found in registry`);
+      return undefined;
+    }
+
+    const isLoader =
+      typeof serviceOrLoader === 'function' &&
+      !(serviceOrLoader as any).prototype?.constructor;
+
+    if (isLoader) {
+      try {
+        const loader = serviceOrLoader as ServiceLoader;
+        const serviceType = await loader();
+        this.loadedServices.set(name, serviceType);
+        return serviceType;
+      } catch (error) {
+        console.error(`Failed to lazy load service "${name}":`, error);
+        return undefined;
+      }
+    }
+
+    const serviceType = serviceOrLoader as Type<any>;
+    this.loadedServices.set(name, serviceType);
+    return serviceType;
+  }
+
+  /**
+   * Get the service Type synchronously (only for already loaded services).
+   */
+  getTypeSync(name: string): Type<any> | undefined {
+    if (this.loadedServices.has(name)) {
+      return this.loadedServices.get(name);
+    }
+
+    const serviceOrLoader = this.services.get(name);
+    if (!serviceOrLoader) {
+      return undefined;
+    }
+
+    const isLoader =
+      typeof serviceOrLoader === 'function' &&
+      !(serviceOrLoader as any).prototype?.constructor;
+
+    if (isLoader) {
+      return undefined;
+    }
+
+    const serviceType = serviceOrLoader as Type<any>;
+    this.loadedServices.set(name, serviceType);
+    return serviceType;
+  }
+
+  /**
    * Check if a service is registered
    */
   has(name: string): boolean {
