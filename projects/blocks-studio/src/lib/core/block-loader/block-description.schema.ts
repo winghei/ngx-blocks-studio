@@ -1,0 +1,89 @@
+import { z } from 'zod';
+
+/**
+ * Service entry: root-scoped (string id) or self-scoped ({ id, scope: "self" }).
+ */
+const ServiceEntrySchema = z.union([
+  z.string().min(1),
+  z.object({
+    id: z.string().min(1),
+    scope: z.literal('self'),
+  }),
+]);
+
+/**
+ * Output handler: empty (use directive-provided handler) or reference-based (call method on ref).
+ */
+const OutputReferenceSchema = z.object({
+  type: z.literal('reference'),
+  reference: z.string().min(1),
+  method: z.string().min(1),
+  params: z.union([z.array(z.unknown()), z.record(z.string(), z.unknown())]).optional(),
+  then: z.array(z.object({
+    reference: z.string().min(1),
+    method: z.string().min(1),
+    params: z.union([z.array(z.unknown()), z.record(z.string(), z.unknown())]).optional(),
+  })).optional(),
+  onSuccess: z.object({
+    reference: z.string().min(1),
+    method: z.string().min(1),
+    params: z.union([z.array(z.unknown()), z.record(z.string(), z.unknown())]).optional(),
+  }).optional(),
+  onError: z.object({
+    reference: z.string().min(1),
+    method: z.string().min(1),
+    params: z.union([z.array(z.unknown()), z.record(z.string(), z.unknown())]).optional(),
+  }).optional(),
+});
+
+const OutputValueSchema = z.union([
+  z.record(z.string(), z.unknown()),
+  OutputReferenceSchema,
+]);
+
+/**
+ * Block description: JSON-serializable descriptor for dynamic block loading.
+ * Refs in inputs use instance namespace: instance.FormState.firstName or UserForm.instance.FormState.firstName.
+ */
+export const BlockDescriptionSchema = z.object({
+  component: z.string().min(1),
+  id: z.string().min(1).optional(),
+  services: z.union([
+    ServiceEntrySchema,
+    z.array(ServiceEntrySchema),
+  ]).optional().default([]),
+  inputs: z.record(z.string(), z.unknown()).optional(),
+  outputs: z.record(z.string(), OutputValueSchema).optional(),
+});
+
+export type BlockDescription = z.infer<typeof BlockDescriptionSchema>;
+export type ServiceEntry = z.infer<typeof ServiceEntrySchema>;
+export type OutputReference = z.infer<typeof OutputReferenceSchema>;
+
+/** Normalize services to array. */
+export function normalizeServices(
+  services: BlockDescription['services']
+): ServiceEntry[] {
+  if (services == null) return [];
+  return Array.isArray(services) ? services : [services];
+}
+
+export function parseBlockDescription(data: unknown): BlockDescription {
+  return BlockDescriptionSchema.parse(data);
+}
+
+export function safeParseBlockDescription(
+  data: unknown
+): ReturnType<typeof BlockDescriptionSchema.safeParse> {
+  return BlockDescriptionSchema.safeParse(data);
+}
+
+export function isOutputReference(value: unknown): value is OutputReference {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as OutputReference).type === 'reference' &&
+    typeof (value as OutputReference).reference === 'string' &&
+    typeof (value as OutputReference).method === 'string'
+  );
+}

@@ -1,0 +1,11 @@
+@if (blockDescription(); as desc) {
+  <div class="block-host">
+    <div
+      block
+      [description]="desc"
+      [blockRegistry]="getRegistry()">
+    </div>
+  </div>
+} @else {
+  <p class="block-host-empty">No block description in route data.</p>
+}

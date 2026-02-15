@@ -1,0 +1,25 @@
+.string-input-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.string-input-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary, #666);
+}
+
+.string-input-field {
+  padding: 0.5rem 0.75rem;
+  font-size: 1rem;
+  border: 1px solid var(--border-color, #ccc);
+  border-radius: 6px;
+  background: var(--background-color, #fff);
+
+  &:focus {
+    outline: none;
+    border-color: var(--primary-color, #1976d2);
+    box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2);
+  }
+}

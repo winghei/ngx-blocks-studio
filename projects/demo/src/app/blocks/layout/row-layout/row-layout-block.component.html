@@ -1,0 +1,13 @@
+@for (row of rows(); track $index) {
+  <div class="row-layout-row">
+    @for (col of row.columns; track $index) {
+      <div class="row-layout-col">
+        <div
+          block
+          [description]="col"
+          [blockRegistry]="getRegistry()">
+        </div>
+      </div>
+    }
+  </div>
+}

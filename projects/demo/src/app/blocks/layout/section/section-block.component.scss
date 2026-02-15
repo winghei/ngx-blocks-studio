@@ -1,0 +1,19 @@
+.section-block {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  border: 1px solid var(--border-color, #e0e0e0);
+  border-radius: 8px;
+  background: var(--surface-color, #fafafa);
+}
+
+.section-title {
+  margin: 0 0 0.75rem 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.section-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}

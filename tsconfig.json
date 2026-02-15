@@ -6,6 +6,9 @@
     "paths": {
       "blocks-studio": [
         "./dist/blocks-studio"
+      ],
+      "ngx-blocks-studio": [
+        "./dist/blocks-studio"
       ]
     },
     "strict": true,
@@ -33,6 +36,9 @@
     },
     {
       "path": "./projects/blocks-studio/tsconfig.spec.json"
+    },
+    {
+      "path": "./projects/demo/tsconfig.app.json"
     }
   ]
 }

@@ -1,3 +1,3 @@
 export * from './registry';
 export * from './services';
-export * from './dynamic-loader';
+export * from './block-loader';

@@ -1,0 +1,15 @@
+.row-layout-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.row-layout-col {
+  flex: 1 1 0;
+  min-width: 0;
+}
