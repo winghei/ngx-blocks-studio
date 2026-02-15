@@ -9,7 +9,12 @@ import {
 import { BlockLoaderService, type BlockLoadResult } from './block-loader.service';
 import type { BlockRegistry } from './block-registry';
 import type { BlockDescription } from './block-description.schema';
-import { safeParseBlockDescription, normalizeServices } from './block-description.schema';
+import {
+  safeParseBlockDescription,
+  normalizeServices,
+  isBlockReference,
+  resolveBlockReference,
+} from './block-description.schema';
 
 /** Compact key for services to avoid JSON.stringify of large config in effect. */
 function getServicesKey(services: BlockDescription['services']): string {
@@ -27,12 +32,14 @@ export class BlockDirective {
   private readonly loader = inject(BlockLoaderService);
   private readonly destroyRef = inject(DestroyRef);
 
-  /** JSON description: { component, id?, services?, inputs?, outputs? }. */
+  /** Full description, or { id } / { blockId, blockDefinition? } to reuse/override from blockDefinitions. */
   readonly description = input<unknown | null>(null);
   /** Handlers for component outputs; keys match descriptor.outputs. */
   readonly outputHandlers = input<Record<string, (value: unknown) => void>>({});
   /** Registry for block instances by id; pass from root so nested blocks share it. */
   readonly blockRegistry = input<BlockRegistry | null>(null);
+  /** Map id → full description; used when description is a block reference (id/blockId). */
+  readonly blockDefinitions = input<Record<string, unknown> | null>(null);
 
   private loadResult: BlockLoadResult | null = null;
   private loadedComponent: string | null = null;
@@ -46,6 +53,7 @@ export class BlockDirective {
     effect(() => {
       const desc = this.description();
       const outputHandlers = this.outputHandlers();
+      const definitions = this.blockDefinitions();
 
       if (desc == null) {
         this.lastDescRef = null;
@@ -54,15 +62,20 @@ export class BlockDirective {
         return;
       }
 
+      const resolved =
+        isBlockReference(desc) && definitions != null
+          ? resolveBlockReference(desc, definitions)
+          : desc;
+
       let data: BlockDescription;
-      if (desc === this.lastDescRef && this.lastParsedData != null) {
+      if (resolved === this.lastDescRef && this.lastParsedData != null) {
         data = this.lastParsedData;
       } else {
-        const parsed = safeParseBlockDescription(desc);
+        const parsed = safeParseBlockDescription(resolved);
         if (!parsed.success) {
           return;
         }
-        this.lastDescRef = desc;
+        this.lastDescRef = resolved;
         this.lastParsedData = parsed.data;
         data = parsed.data;
       }
@@ -73,7 +86,7 @@ export class BlockDirective {
         this.loadedServicesKey === servicesKey;
 
       if (canUpdate && this.loadResult) {
-        this.loadResult.updateInputs(desc);
+        this.loadResult.updateInputs(resolved);
         return;
       }
 
@@ -81,9 +94,10 @@ export class BlockDirective {
       const registry = this.blockRegistry() ?? undefined;
       const generation = ++this.loadGeneration;
       this.loader
-        .load(desc, this.viewContainerRef, {
+        .load(resolved, this.viewContainerRef, {
           outputHandlers: Object.keys(outputHandlers).length > 0 ? outputHandlers : undefined,
           registry,
+          blockDefinitions: definitions ?? undefined,
         })
         .then((result) => {
           if (generation !== this.loadGeneration) return;

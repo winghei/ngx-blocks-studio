@@ -27,6 +27,9 @@ export class BlockHostComponent {
   });
 
   readonly blockDescription = computed(() => this.routeData()['block'] ?? null);
+  readonly blockDefinitions = computed(
+    () => (this.routeData()['blockDefinitions'] as Record<string, unknown> | undefined) ?? null
+  );
 
   getRegistry(): BlockRegistry {
     return this.blockRegistry.registry;

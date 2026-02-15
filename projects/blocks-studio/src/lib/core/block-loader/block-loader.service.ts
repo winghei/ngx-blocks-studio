@@ -13,6 +13,8 @@ import {
   BlockDescription,
   safeParseBlockDescription,
   normalizeServices,
+  isBlockReference,
+  resolveBlockReference,
 } from './block-description.schema';
 import { BlockRegistryImpl, type BlockRegistry, type BlockInstanceHandle } from './block-registry';
 import { ResolverContext, getRefValue, setRefValue } from './ref-resolver';
@@ -24,6 +26,8 @@ import { ServiceRegistry } from '../registry/service.registry';
 export interface BlockLoadOptions {
   outputHandlers?: Record<string, (value: unknown) => void>;
   registry?: BlockRegistry;
+  /** Map of block id → full description; used when description is an id-only reference. */
+  blockDefinitions?: Record<string, unknown>;
 }
 
 export interface BlockLoadResult {
@@ -43,7 +47,11 @@ export class BlockLoaderService {
     viewContainerRef: ViewContainerRef,
     options?: BlockLoadOptions
   ): Promise<BlockLoadResult> {
-    const parsed = safeParseBlockDescription(description);
+    let resolved: unknown = description;
+    if (isBlockReference(description) && options?.blockDefinitions) {
+      resolved = resolveBlockReference(description, options.blockDefinitions);
+    }
+    const parsed = safeParseBlockDescription(resolved);
     if (!parsed.success) {
       throw new Error(`Invalid block description: ${parsed.error.message}`);
     }

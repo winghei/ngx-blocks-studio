@@ -20,7 +20,7 @@ const personFormBlock = {
           {
             component: 'HtmlBlock',
             inputs: {
-              html: "hello {{PersonForm.instance.FormState.firstName }} {{PersonForm.instance.FormState.lastName}} {{PersonForm.instance.FormState.age}}",
+              html: 'hello {{PersonForm.instance.FormState.firstName }} {{PersonForm.instance.FormState.lastName}} {{PersonForm.instance.FormState.age}}',
             },
           },
         ],
@@ -77,9 +77,19 @@ const personFormBlock = {
   },
 };
 
-export const personFormRoute = {
-  path: '',
-  component: 'BlockHost',
-  title: 'Person info',
-  data: { block: personFormBlock },
-} as const;
+/** Exported so routes can reference by id: { id: 'PersonForm' } with blockDefinitions. */
+export { personFormBlock };
+
+export const routes = [
+  {
+    path: '',
+    component: 'BlockHost',
+    title: 'Person info',
+    data: {
+      // Reuse by id; optional blockDefinition deep-merges overrides (e.g. inputs.model only).
+      // Example with override: block: { blockId: 'PersonForm', blockDefinition: { inputs: { model: {...} } } }
+      block: { id: 'PersonForm' },
+      blockDefinitions: { PersonForm: personFormBlock },
+    },
+  } as const,
+];

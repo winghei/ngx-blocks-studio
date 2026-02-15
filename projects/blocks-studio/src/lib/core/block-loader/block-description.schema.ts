@@ -87,3 +87,77 @@ export function isOutputReference(value: unknown): value is OutputReference {
     typeof (value as OutputReference).method === 'string'
   );
 }
+
+/**
+ * Reference to a registered block: { id: string } or { blockId: string, blockDefinition?: object }.
+ * When blockDefinition is provided, it is deep-merged onto the base definition so only
+ * specified properties override (e.g. inputs.model); other keys are preserved.
+ */
+export interface BlockReference {
+  id?: string;
+  blockId?: string;
+  blockDefinition?: Record<string, unknown>;
+}
+
+export function isBlockReference(value: unknown): value is BlockReference {
+  if (typeof value !== 'object' || value === null || 'component' in value) return false;
+  const id = (value as BlockReference).id ?? (value as BlockReference).blockId;
+  return typeof id === 'string' && id.length > 0;
+}
+
+/** @deprecated Use isBlockReference. Id-only is still supported as { id: string }. */
+export function isIdReference(value: unknown): value is { id: string } {
+  return isBlockReference(value) && !(value as BlockReference).blockDefinition;
+}
+
+/**
+ * Deep-merge override onto base. Only keys present in override are changed; nested objects
+ * are merged recursively so e.g. override.inputs.model does not remove base.inputs.rows.
+ * Arrays and primitives in override replace the base value.
+ */
+export function deepMergeBlockDefinition(
+  base: Record<string, unknown>,
+  override: Record<string, unknown>
+): Record<string, unknown> {
+  const result = { ...base };
+  for (const key of Object.keys(override)) {
+    const baseVal = result[key];
+    const overrideVal = override[key];
+    if (
+      overrideVal != null &&
+      typeof overrideVal === 'object' &&
+      !Array.isArray(overrideVal) &&
+      baseVal != null &&
+      typeof baseVal === 'object' &&
+      !Array.isArray(baseVal)
+    ) {
+      result[key] = deepMergeBlockDefinition(
+        baseVal as Record<string, unknown>,
+        overrideVal as Record<string, unknown>
+      );
+    } else {
+      result[key] = overrideVal;
+    }
+  }
+  return result;
+}
+
+/**
+ * Resolve a block reference to a full description using blockDefinitions.
+ * If blockDefinition is present, it is deep-merged onto the base; otherwise returns the base.
+ */
+export function resolveBlockReference(
+  ref: BlockReference,
+  blockDefinitions: Record<string, unknown>
+): Record<string, unknown> {
+  const id = ref.blockId ?? ref.id;
+  if (!id) throw new Error('Block reference must have id or blockId.');
+  const base = blockDefinitions[id];
+  if (base == null || typeof base !== 'object')
+    throw new Error(`Block "${id}" has no definition in blockDefinitions.`);
+  const baseObj = base as Record<string, unknown>;
+  const overrides = ref.blockDefinition;
+  if (overrides == null || typeof overrides !== 'object' || Object.keys(overrides).length === 0)
+    return { ...baseObj };
+  return deepMergeBlockDefinition(baseObj, overrides);
+}
