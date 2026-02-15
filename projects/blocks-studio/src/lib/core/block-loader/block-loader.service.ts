@@ -86,14 +86,12 @@ export class BlockLoaderService {
     const ctx: ResolverContext = { registry, currentBlockId: desc.id ?? undefined, currentInstance: blockInstance };
     const handle: BlockInstanceHandle = { instance: blockInstance };
     if (desc.id != null && desc.id !== '') registry.register(desc.id, handle);
-    const templateEffectRefs = this.setInputs(componentRef, desc, ctx);
-    const modelEffectRefs = this.wireTwoWayModelInputs(componentRef, desc, ctx);
+    const effectRefs = this.setInputs(componentRef, desc, ctx);
     const subscriptions = this.wireOutputs(componentRef, desc, registry, options?.outputHandlers);
 
     const doDestroy = (): void => {
       if (desc.id != null && desc.id !== '') registry.unregister(desc.id);
-      templateEffectRefs.forEach((ref) => ref.destroy());
-      modelEffectRefs.forEach((ref) => ref.destroy());
+      effectRefs.forEach((ref) => ref.destroy());
       subscriptions.forEach((s) => s.unsubscribe());
       const idx = viewContainerRef.indexOf(componentRef.hostView);
       if (idx !== -1) viewContainerRef.remove(idx);
@@ -123,12 +121,13 @@ export class BlockLoaderService {
     return providers.length === 0 ? this.injector : Injector.create({ providers, parent: this.injector });
   }
 
+  /** Set inputs and wire template/two-way effects. Single pass over inputs for large configs. */
   private setInputs(
     componentRef: ComponentRef<unknown>,
     desc: BlockDescription,
     ctx: ResolverContext
   ): EffectRef[] {
-    const templateEffectRefs: EffectRef[] = [];
+    const effectRefs: EffectRef[] = [];
     const inputs = desc.inputs ?? {};
     const inst = componentRef.instance as Record<string, unknown>;
     for (const [key, value] of Object.entries(inputs)) {
@@ -144,23 +143,57 @@ export class BlockLoaderService {
         const initial = this.interpolateTemplate(str, ctx);
         if (componentRef.setInput) componentRef.setInput(key as never, initial as never);
         else inst[key] = initial;
-        const eff = effect(
-          () => {
-            const resolved = this.interpolateTemplate(str, ctx);
-            if (componentRef.setInput) componentRef.setInput(key as never, resolved as never);
-            else inst[key] = resolved;
-
-          },
-          { injector: this.injector }
+        effectRefs.push(
+          effect(
+            () => {
+              const resolved = this.interpolateTemplate(str, ctx);
+              if (componentRef.setInput) componentRef.setInput(key as never, resolved as never);
+              else inst[key] = resolved;
+            },
+            { injector: this.injector }
+          )
         );
-        templateEffectRefs.push(eff);
+        continue;
+      }
+      if (typeof value === 'string' && isTwoWayRefString(value)) {
+        const refPath = parseTwoWayRef(value);
+        if (refPath) {
+          const initial = getRefValue(refPath, ctx);
+          if (componentRef.setInput) componentRef.setInput(key as never, initial as never);
+          else inst[key] = initial;
+          const modelSig = inst[key];
+          if (modelSig != null && typeof modelSig === 'function') {
+            effectRefs.push(
+              effect(
+                () => {
+                  const fromRef = getRefValue(refPath, ctx);
+                  if (fromRef === undefined) return;
+                  if (componentRef.setInput) {
+                    componentRef.setInput(key as never, fromRef as never);
+                    componentRef.changeDetectorRef.detectChanges();
+                  }
+                },
+                { injector: this.injector }
+              )
+            );
+            effectRefs.push(
+              effect(
+                () => {
+                  const current = (modelSig as () => unknown)();
+                  setRefValue(refPath, ctx, current);
+                },
+                { injector: this.injector }
+              )
+            );
+          }
+        }
         continue;
       }
       const resolved = this.resolveInputValue(value, ctx);
       if (componentRef.setInput) componentRef.setInput(key as never, resolved as never);
       else inst[key] = resolved;
     }
-    return templateEffectRefs;
+    return effectRefs;
   }
 
   /** Replace all {{ refPath }} in a string with resolved values (indexOf-based, no regex). */
@@ -206,73 +239,32 @@ export class BlockLoaderService {
       return value;
     }
     if (Array.isArray(value)) {
-      return value.map((item) => this.resolveInputValue(item, ctx, options));
+      let changed = false;
+      const resolved = value.map((item) => {
+        const r = this.resolveInputValue(item, ctx, options);
+        if (r !== item) changed = true;
+        return r;
+      });
+      return changed ? resolved : value;
     }
     if (value != null && typeof value === 'object') {
       const obj = value as Record<string, unknown>;
       const isNestedBlockDescriptor =
         typeof obj['component'] === 'string' && obj['inputs'] != null;
+      let changed = false;
       const out: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
         const childOptions =
           isNestedBlockDescriptor && k === 'inputs'
             ? { preserveTwoWayRefs: true }
             : options;
-        out[k] = this.resolveInputValue(v, ctx, childOptions);
+        const resolved = this.resolveInputValue(v, ctx, childOptions);
+        if (resolved !== v) changed = true;
+        out[k] = resolved;
       }
-      return out;
+      return changed ? out : value;
     }
     return value;
-  }
-
-  /**
-   * For inputs that use two-way refs (e.g. value: '[(PersonForm.instance.FormState.firstName)]'):
-   * 1. Effect on ref: read ref value (FormState.firstName), setInput on component so it stays in sync.
-   * 2. Effect on component property: read component model, setRefValue so ref stays in sync when user types.
-   */
-  private wireTwoWayModelInputs(
-    componentRef: ComponentRef<unknown>,
-    desc: BlockDescription,
-    ctx: ResolverContext
-  ): EffectRef[] {
-    const refs: EffectRef[] = [];
-    const inputs = desc.inputs ?? {};
-    const inst = componentRef.instance as Record<string, unknown>;
-    for (const [key, value] of Object.entries(inputs)) {
-      if (key === 'model' || typeof value !== 'string') continue;
-      if (!isTwoWayRefString(value)) continue;
-      const refPath = parseTwoWayRef(value);
-      if (!refPath) continue;
-      const modelSig = inst[key];
-      if (modelSig == null || typeof modelSig !== 'function') continue;
-
-      // 1. Effect on ref only: when ref (e.g. FormState.firstName) changes, setInput on the component (do not read component model here to avoid overwriting user input)
-      refs.push(
-        effect(
-          () => {
-            const fromRef = getRefValue(refPath, ctx);
-            if (fromRef === undefined) return;
-            if (componentRef.setInput) {
-              componentRef.setInput(key as never, fromRef as never);
-              componentRef.changeDetectorRef.detectChanges();
-            }
-          },
-          { injector: this.injector }
-        )
-      );
-
-      // 2. Listen to component property change and set ref (FormState.firstName)
-      refs.push(
-        effect(
-          () => {
-            const current = (modelSig as () => unknown)();
-            setRefValue(refPath, ctx, current);
-          },
-          { injector: this.injector }
-        )
-      );
-    }
-    return refs;
   }
 
   private wireOutputs(
