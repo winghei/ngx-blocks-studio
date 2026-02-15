@@ -5,22 +5,33 @@
 const READONLY_REF_RE = /\{\{([^}]+)\}\}/g;
 const TWOWAY_REF_RE = /^\[\(([^)]+)\)\]$/;
 
-const PARSE_REF_PATH_CACHE_MAX = 64;
-const parseRefPathCache = new Map<string, { blockId?: string; instancePath: string }>();
+export interface ParsedRefPath {
+  blockId?: string;
+  instancePath: string;
+  pathParts: string[];
+}
 
-function parseRefPathUncached(refPath: string): { blockId?: string; instancePath: string } {
+const PARSE_REF_PATH_CACHE_MAX = 64;
+const parseRefPathCache = new Map<string, ParsedRefPath>();
+
+function toPathParts(instancePath: string): string[] {
+  return instancePath.split('.').filter(Boolean);
+}
+
+function parseRefPathUncached(refPath: string): ParsedRefPath {
   const trimmed = refPath.trim();
   const parts = trimmed.split('.');
   if (parts.length >= 2 && parts[0] === 'instance') {
-    return { instancePath: trimmed };
+    return { instancePath: trimmed, pathParts: toPathParts(trimmed) };
   }
   if (parts.length >= 3 && parts[1] === 'instance') {
-    return { blockId: parts[0], instancePath: parts.slice(1).join('.') };
+    const instancePath = parts.slice(1).join('.');
+    return { blockId: parts[0], instancePath, pathParts: toPathParts(instancePath) };
   }
-  return { instancePath: trimmed };
+  return { instancePath: trimmed, pathParts: toPathParts(trimmed) };
 }
 
-export function parseRefPath(refPath: string): { blockId?: string; instancePath: string } {
+export function parseRefPath(refPath: string): ParsedRefPath {
   const cached = parseRefPathCache.get(refPath);
   if (cached) return cached;
   const result = parseRefPathUncached(refPath);

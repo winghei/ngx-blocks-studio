@@ -18,8 +18,7 @@ export function resolveRefPath(
   refPath: string,
   ctx: ResolverContext
 ): { target: unknown; path: string[] } | null {
-  const { blockId, instancePath } = parseRefPath(refPath);
-  const pathParts = instancePath.split('.').filter(Boolean);
+  const { blockId, pathParts } = parseRefPath(refPath);
   if (pathParts[0] !== 'instance' || pathParts.length < 2) {
     return null;
   }

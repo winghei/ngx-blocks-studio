@@ -60,15 +60,16 @@ export class BlockLoaderService {
 
     const services = normalizeServices(desc.services);
     const selfServices = services.filter((s): s is { id: string; scope: 'self' } => typeof s === 'object' && (s as { scope?: string }).scope === 'self');
-    const childInjector = await this.buildChildInjector(selfServices);
+    const serviceTypes = await this.getServiceTypes(selfServices);
+    const childInjector = this.buildChildInjectorFromTypes(serviceTypes);
     const componentRef = viewContainerRef.createComponent(componentType as Type<unknown>, {
       injector: childInjector,
     });
 
     const blockInstance: Record<string, unknown> = {};
-    for (const entry of selfServices) {
-      const id = entry.id;
-      const serviceType = await this.serviceRegistry.getType(id);
+    for (let i = 0; i < selfServices.length; i++) {
+      const id = selfServices[i].id;
+      const serviceType = serviceTypes[i];
       if (serviceType) {
         const svc = componentRef.injector.get(serviceType as Type<unknown>);
         if (svc != null) blockInstance[id] = svc;
@@ -110,16 +111,14 @@ export class BlockLoaderService {
     return { componentRef, destroy: doDestroy, updateInputs };
   }
 
-  private async buildChildInjector(selfServices: { id: string; scope: 'self' }[]): Promise<Injector> {
-    if (selfServices.length === 0) return this.injector;
-    const providers: { provide: Type<unknown>; useClass: Type<unknown> }[] = [];
-    for (const entry of selfServices) {
-      const id = entry.id;
-      const serviceType = await this.serviceRegistry.getType(id);
-      if (serviceType) {
-        providers.push({ provide: serviceType as Type<unknown>, useClass: serviceType as Type<unknown> });
-      }
-    }
+  /** Resolve all service types in parallel (single batch for load). */
+  private async getServiceTypes(selfServices: { id: string; scope: 'self' }[]): Promise<(Type<unknown> | undefined)[]> {
+    if (selfServices.length === 0) return [];
+    return Promise.all(selfServices.map((e) => this.serviceRegistry.getType(e.id)));
+  }
+
+  private buildChildInjectorFromTypes(serviceTypes: (Type<unknown> | undefined)[]): Injector {
+    const providers = serviceTypes.filter((t): t is Type<unknown> => t != null).map((t) => ({ provide: t, useClass: t }));
     return providers.length === 0 ? this.injector : Injector.create({ providers, parent: this.injector });
   }
 
@@ -201,21 +200,29 @@ export class BlockLoaderService {
     return effectRefs;
   }
 
-  /** Replace all {{ refPath }} with resolved values. Cap iterations for very large templates (enterprise). */
+  /** Replace all {{ refPath }} with resolved values. Uses parts array + join to avoid N string concats. */
   private static readonly INTERPOLATE_MAX_PLACEHOLDERS = 200;
   private interpolateTemplate(template: string, ctx: ResolverContext): string {
+    const parts: string[] = [];
     let s = template;
     for (let i = 0; i < BlockLoaderService.INTERPOLATE_MAX_PLACEHOLDERS; i++) {
       const start = s.indexOf('{{');
-      if (start === -1) return s;
+      if (start === -1) {
+        parts.push(s);
+        break;
+      }
+      parts.push(s.slice(0, start));
       const end = s.indexOf('}}', start);
-      if (end === -1) return s;
+      if (end === -1) {
+        parts.push(s.slice(start));
+        break;
+      }
       const ref = s.slice(start + 2, end).trim();
       const val = ref ? getRefValue(ref, ctx) : null;
-      const replacement = val != null ? String(val) : '';
-      s = s.slice(0, start) + replacement + s.slice(end + 2);
+      parts.push(val != null ? String(val) : '');
+      s = s.slice(end + 2);
     }
-    return s;
+    return parts.join('');
   }
 
   /**
@@ -259,18 +266,22 @@ export class BlockLoaderService {
       const obj = value as Record<string, unknown>;
       const isNestedBlockDescriptor =
         typeof obj['component'] === 'string' && obj['inputs'] != null;
+      const entries = Object.entries(value as Record<string, unknown>);
+      const resolvedPairs: [string, unknown][] = [];
       let changed = false;
-      const out: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      for (const [k, v] of entries) {
         const childOptions =
           isNestedBlockDescriptor && k === 'inputs'
             ? { preserveTwoWayRefs: true }
             : options;
         const resolved = this.resolveInputValue(v, ctx, childOptions);
         if (resolved !== v) changed = true;
-        out[k] = resolved;
+        resolvedPairs.push([k, resolved]);
       }
-      return changed ? out : value;
+      if (!changed) return value;
+      const out: Record<string, unknown> = {};
+      for (const [k, r] of resolvedPairs) out[k] = r;
+      return out;
     }
     return value;
   }
