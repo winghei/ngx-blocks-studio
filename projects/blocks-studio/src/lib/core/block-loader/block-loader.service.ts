@@ -16,7 +16,7 @@ import {
 } from './block-description.schema';
 import { BlockRegistryImpl, type BlockRegistry, type BlockInstanceHandle } from './block-registry';
 import { ResolverContext, getRefValue, setRefValue } from './ref-resolver';
-import { isInvalidTwoWayMix, isTwoWayRefString, parseTwoWayRef } from './ref-expressions';
+import { classifyTwoWayString, parseTwoWayRef } from './ref-expressions';
 import { createOutputHandler } from './output-reference';
 import { ComponentRegistry } from '../registry/component.registry';
 import { ServiceRegistry } from '../registry/service.registry';
@@ -59,13 +59,13 @@ export class BlockLoaderService {
     }
 
     const services = normalizeServices(desc.services);
-    const childInjector = await this.buildChildInjector(services);
+    const selfServices = services.filter((s): s is { id: string; scope: 'self' } => typeof s === 'object' && (s as { scope?: string }).scope === 'self');
+    const childInjector = await this.buildChildInjector(selfServices);
     const componentRef = viewContainerRef.createComponent(componentType as Type<unknown>, {
       injector: childInjector,
     });
 
     const blockInstance: Record<string, unknown> = {};
-    const selfServices = services.filter((s): s is { id: string; scope: 'self' } => typeof s === 'object' && (s as { scope?: string }).scope === 'self');
     for (const entry of selfServices) {
       const id = entry.id;
       const serviceType = await this.serviceRegistry.getType(id);
@@ -86,12 +86,12 @@ export class BlockLoaderService {
     const ctx: ResolverContext = { registry, currentBlockId: desc.id ?? undefined, currentInstance: blockInstance };
     const handle: BlockInstanceHandle = { instance: blockInstance };
     if (desc.id != null && desc.id !== '') registry.register(desc.id, handle);
-    const effectRefs = this.setInputs(componentRef, desc, ctx);
+    let currentEffectRefs = this.setInputs(componentRef, desc, ctx);
     const subscriptions = this.wireOutputs(componentRef, desc, registry, options?.outputHandlers);
 
     const doDestroy = (): void => {
       if (desc.id != null && desc.id !== '') registry.unregister(desc.id);
-      effectRefs.forEach((ref) => ref.destroy());
+      currentEffectRefs.forEach((ref) => ref.destroy());
       subscriptions.forEach((s) => s.unsubscribe());
       const idx = viewContainerRef.indexOf(componentRef.hostView);
       if (idx !== -1) viewContainerRef.remove(idx);
@@ -101,18 +101,20 @@ export class BlockLoaderService {
 
     const updateInputs = (newDesc: unknown): void => {
       const p = safeParseBlockDescription(newDesc);
-      if (p.success) this.setInputs(componentRef, p.data, ctx);
+      if (p.success) {
+        currentEffectRefs.forEach((ref) => ref.destroy());
+        currentEffectRefs = this.setInputs(componentRef, p.data, ctx);
+      }
     };
 
     return { componentRef, destroy: doDestroy, updateInputs };
   }
 
-  private async buildChildInjector(services: ReturnType<typeof normalizeServices>): Promise<Injector> {
-    const selfServices = services.filter((s): s is { id: string; scope: 'self' } => typeof s === 'object' && (s as { scope?: string }).scope === 'self');
+  private async buildChildInjector(selfServices: { id: string; scope: 'self' }[]): Promise<Injector> {
     if (selfServices.length === 0) return this.injector;
     const providers: { provide: Type<unknown>; useClass: Type<unknown> }[] = [];
     for (const entry of selfServices) {
-      const id = (entry as { id: string }).id;
+      const id = entry.id;
       const serviceType = await this.serviceRegistry.getType(id);
       if (serviceType) {
         providers.push({ provide: serviceType as Type<unknown>, useClass: serviceType as Type<unknown> });
@@ -132,14 +134,51 @@ export class BlockLoaderService {
     const inst = componentRef.instance as Record<string, unknown>;
     for (const [key, value] of Object.entries(inputs)) {
       if (key === 'model') continue;
-      if (typeof value === 'string' && isInvalidTwoWayMix(value)) {
-        throw new Error(
-          `Invalid input "${String(key)}": two-way ref "[( )]" cannot be mixed with literals or "{{ }}". ` +
-            `Use exactly "[(refPath)]" for two-way or "{{ refPath }}" for read-only.`
-        );
+      if (typeof value === 'string') {
+        const twoWayKind = classifyTwoWayString(value);
+        if (twoWayKind === 'invalid-mix') {
+          throw new Error(
+            `Invalid input "${String(key)}": two-way ref "[( )]" cannot be mixed with literals or "{{ }}". ` +
+              `Use exactly "[(refPath)]" for two-way or "{{ refPath }}" for read-only.`
+          );
+        }
+        if (twoWayKind === 'two-way') {
+          const refPath = parseTwoWayRef(value);
+          if (refPath) {
+            const initial = getRefValue(refPath, ctx);
+            if (componentRef.setInput) componentRef.setInput(key as never, initial as never);
+            else inst[key] = initial;
+            const modelSig = inst[key];
+            if (modelSig != null && typeof modelSig === 'function') {
+              effectRefs.push(
+                effect(
+                  () => {
+                    const fromRef = getRefValue(refPath, ctx);
+                    if (fromRef === undefined) return;
+                    if (componentRef.setInput) {
+                      componentRef.setInput(key as never, fromRef as never);
+                      componentRef.changeDetectorRef.detectChanges();
+                    }
+                  },
+                  { injector: this.injector }
+                )
+              );
+              effectRefs.push(
+                effect(
+                  () => {
+                    const current = (modelSig as () => unknown)();
+                    setRefValue(refPath, ctx, current);
+                  },
+                  { injector: this.injector }
+                )
+              );
+            }
+          }
+          continue;
+        }
       }
       const str = value as string;
-      if (typeof value === 'string' && str.indexOf('{{') !== -1 && str.indexOf('}}') !== -1) {
+      if (typeof value === 'string' && str.indexOf('{{') !== -1 && str.indexOf('}}', str.indexOf('{{')) !== -1) {
         const initial = this.interpolateTemplate(str, ctx);
         if (componentRef.setInput) componentRef.setInput(key as never, initial as never);
         else inst[key] = initial;
@@ -155,40 +194,6 @@ export class BlockLoaderService {
         );
         continue;
       }
-      if (typeof value === 'string' && isTwoWayRefString(value)) {
-        const refPath = parseTwoWayRef(value);
-        if (refPath) {
-          const initial = getRefValue(refPath, ctx);
-          if (componentRef.setInput) componentRef.setInput(key as never, initial as never);
-          else inst[key] = initial;
-          const modelSig = inst[key];
-          if (modelSig != null && typeof modelSig === 'function') {
-            effectRefs.push(
-              effect(
-                () => {
-                  const fromRef = getRefValue(refPath, ctx);
-                  if (fromRef === undefined) return;
-                  if (componentRef.setInput) {
-                    componentRef.setInput(key as never, fromRef as never);
-                    componentRef.changeDetectorRef.detectChanges();
-                  }
-                },
-                { injector: this.injector }
-              )
-            );
-            effectRefs.push(
-              effect(
-                () => {
-                  const current = (modelSig as () => unknown)();
-                  setRefValue(refPath, ctx, current);
-                },
-                { injector: this.injector }
-              )
-            );
-          }
-        }
-        continue;
-      }
       const resolved = this.resolveInputValue(value, ctx);
       if (componentRef.setInput) componentRef.setInput(key as never, resolved as never);
       else inst[key] = resolved;
@@ -196,10 +201,11 @@ export class BlockLoaderService {
     return effectRefs;
   }
 
-  /** Replace all {{ refPath }} in a string with resolved values (indexOf-based, no regex). */
+  /** Replace all {{ refPath }} with resolved values. Cap iterations for very large templates (enterprise). */
+  private static readonly INTERPOLATE_MAX_PLACEHOLDERS = 200;
   private interpolateTemplate(template: string, ctx: ResolverContext): string {
     let s = template;
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < BlockLoaderService.INTERPOLATE_MAX_PLACEHOLDERS; i++) {
       const start = s.indexOf('{{');
       if (start === -1) return s;
       const end = s.indexOf('}}', start);
@@ -225,13 +231,15 @@ export class BlockLoaderService {
   ): unknown {
     const preserveTwoWayRefs = options?.preserveTwoWayRefs ?? false;
     if (typeof value === 'string') {
-      if (isInvalidTwoWayMix(value)) {
+      const twoWayKind = classifyTwoWayString(value);
+      if (twoWayKind === 'invalid-mix') {
+        const preview = value.length > 200 ? `${value.slice(0, 200)}...` : value;
         throw new Error(
           `Invalid input: two-way ref "[( )]" cannot be mixed with literals or "{{ }}". ` +
-            `Use exactly "[(refPath)]" for two-way or "{{ refPath }}" for read-only. Got: ${JSON.stringify(value)}`
+            `Use exactly "[(refPath)]" for two-way or "{{ refPath }}" for read-only. Got: ${JSON.stringify(preview)}`
         );
       }
-      if (isTwoWayRefString(value)) {
+      if (twoWayKind === 'two-way') {
         if (preserveTwoWayRefs) return value;
         const refPath = parseTwoWayRef(value);
         return refPath ? getRefValue(refPath, ctx) : value;
