@@ -15,6 +15,7 @@ const personFormBlock = {
       age: 28,
     },
     rows: [
+      { columns: [{ id: 'AppNav' }] },
       {
         columns: [
           {
@@ -77,7 +78,6 @@ const personFormBlock = {
   },
 };
 
-/** Exported so routes can reference by id: { id: 'PersonForm' } with blockDefinitions. */
 export { personFormBlock };
 
 export const routes = [

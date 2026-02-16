@@ -1,4 +1,5 @@
 export * from './block-description.schema';
+export * from './block-definitions.registry';
 export * from './block-registry';
 export * from './ref-expressions';
 export * from './ref-resolver';

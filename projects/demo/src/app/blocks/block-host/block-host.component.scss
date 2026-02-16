@@ -1,10 +1,15 @@
 .block-host {
-  max-width: 640px;
+  max-width: 36rem;
   margin: 0 auto;
-  padding: 2rem 1rem;
+  padding: 2rem 1.5rem;
+  background: var(--surface-color, #fff);
+  border-radius: 12px;
+  border: 1px solid var(--border-color, #e0e0e0);
+  box-shadow: 0 1px 3px var(--shadow-light, rgba(0, 0, 0, 0.06));
 }
 
 .block-host-empty {
   padding: 2rem;
   color: var(--text-secondary, #666);
+  text-align: center;
 }

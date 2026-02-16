@@ -1,0 +1,33 @@
+/**
+ * Skin classes for the app nav block (HtmlBlock with class="app-nav").
+ * Used by the header nav block on every page.
+ */
+.app-nav {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0 1.5rem;
+  min-height: 3rem;
+  align-items: center;
+  background: var(--surface-color, #f5f5f5);
+  border-bottom: 1px solid var(--border-color, #e0e0e0);
+
+  a {
+    padding: 0.5rem 1rem;
+    color: var(--text-secondary, #555);
+    text-decoration: none;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    border-radius: 6px;
+    transition: color 0.15s, background 0.15s;
+
+    &:hover {
+      color: var(--text-primary, #111);
+      background: var(--hover-bg, rgba(0, 0, 0, 0.06));
+    }
+
+    &.active {
+      color: var(--primary-color, #1565c0);
+      background: var(--active-bg, rgba(21, 101, 192, 0.08));
+    }
+  }
+}

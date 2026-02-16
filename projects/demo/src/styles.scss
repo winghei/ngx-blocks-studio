@@ -1,1 +1,22 @@
-/* You can add global styles to this file, and also import other style files */
+/* Demo app base + skin (nav, etc.) */
+@use 'app/skin/index' as skin;
+
+:root {
+  --text-primary: #111;
+  --text-secondary: #555;
+  --border-color: #e0e0e0;
+  --surface-color: #fff;
+  --background-color: #fafafa;
+  --primary-color: #1565c0;
+  --shadow-light: rgba(0, 0, 0, 0.06);
+  --hover-bg: rgba(0, 0, 0, 0.06);
+  --active-bg: rgba(21, 101, 192, 0.08);
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  font-size: 1rem;
+  color: var(--text-primary);
+  background: var(--background-color);
+}
