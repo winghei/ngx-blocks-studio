@@ -101,6 +101,22 @@ Refs are resolved against the **nearest block with an id** (context). For cross-
 
 ## Outputs as reference
 
+### How output handling works
+
+1. **Block description `outputs`** – Each output key (e.g. `valueChange`) is either an **output reference** (`type: 'reference'`, `reference`, `method`, optional `params` / `then` / `onSuccess` / `onError`) or a plain value; in the latter case the directive’s **outputHandlers** map is used (key = output name), or a no-op if absent.
+
+2. **Wiring** – The loader’s `wireOutputs` builds a handler per output via `createOutputHandler(outputValue, outputKey, registry, outputHandlers)` and subscribes to the component’s emitter (e.g. `inst['valueChange']`). When the component emits, the handler is called with the event value.
+
+3. **Reference handler** – For an output reference, the handler:
+   - Resolves **reference** (e.g. `PersonForm.instance.FormState.age`) through the **BlockRegistry** to the target object (e.g. the `age` signal).
+   - Gets the **method** on that target (e.g. `set`).
+   - Calls **method** with **params** if provided, otherwise with the emitted value as the first argument (e.g. `age.set(emittedValue)`).
+   - If the method returns a Promise, **then** / **onSuccess** / **onError** are invoked by resolving their `reference` + `method` (and optional `params`) the same way and calling them.
+
+**Source:** `output-reference.ts` (`resolveOutputReference`, `createOutputHandler`), `block-loader.service.ts` (`wireOutputs`).
+
+### Output reference shape
+
 When an output value is `{ type: "reference", reference, method, params?, then?, onSuccess?, onError? }`:
 
 - **reference** – Ref path to the target. Can be the **instance** (e.g. `UserForm.instance.FormState`) or a **deep path** to a property (e.g. `UserForm.instance.FormState.age`). For a deep path, the **leaf** is the call target (e.g. the `age` signal).
