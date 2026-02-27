@@ -20,7 +20,7 @@ import { appNavBlock } from './route-data/nav.block';
 
 const routes = [...personFormRoutes, loginRoute, dashboardRoute];
 
-/** Register block templates so they can be resolved by id (e.g. { id: 'AppNav' }) without passing blockDefinitions down. */
+/** Register block templates so they can be resolved by blockId (e.g. { blockId: 'AppNav' }) without passing blockDefinitions down. */
 function registerBlockDefinitions(): void {
   const registry = BlockDefinitionsRegistry.getInstance();
   registry.register('PersonForm', personFormBlock as Record<string, unknown>);

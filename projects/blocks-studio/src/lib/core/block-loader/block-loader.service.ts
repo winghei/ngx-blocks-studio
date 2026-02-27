@@ -45,13 +45,14 @@ export class BlockLoaderService {
   async load(
     description: unknown,
     viewContainerRef: ViewContainerRef,
-    options?: BlockLoadOptions
+    options?: BlockLoadOptions,
   ): Promise<BlockLoadResult> {
     let resolved: unknown = description;
     if (isBlockReference(description)) {
       resolved = resolveBlockReference(description, options?.blockDefinitions);
     }
     const parsed = safeParseBlockDescription(resolved);
+
     if (!parsed.success) {
       throw new Error(`Invalid block description: ${parsed.error.message}`);
     }
@@ -67,7 +68,10 @@ export class BlockLoaderService {
     }
 
     const services = normalizeServices(desc.services);
-    const selfServices = services.filter((s): s is { id: string; scope: 'self' } => typeof s === 'object' && (s as { scope?: string }).scope === 'self');
+    const selfServices = services.filter(
+      (s): s is { id: string; scope: 'self' } =>
+        typeof s === 'object' && (s as { scope?: string }).scope === 'self',
+    );
     const serviceTypes = await this.getServiceTypes(selfServices);
     const childInjector = this.buildChildInjectorFromTypes(serviceTypes);
     const componentRef = viewContainerRef.createComponent(componentType as Type<unknown>, {
@@ -92,7 +96,11 @@ export class BlockLoaderService {
       }
     }
 
-    const ctx: ResolverContext = { registry, currentBlockId: desc.id ?? undefined, currentInstance: blockInstance };
+    const ctx: ResolverContext = {
+      registry,
+      currentBlockId: desc.id ?? undefined,
+      currentInstance: blockInstance,
+    };
     const handle: BlockInstanceHandle = { instance: blockInstance };
     if (desc.id != null && desc.id !== '') registry.register(desc.id, handle);
     let currentEffectRefs = this.setInputs(componentRef, desc, ctx);
@@ -120,21 +128,27 @@ export class BlockLoaderService {
   }
 
   /** Resolve all service types in parallel (single batch for load). */
-  private async getServiceTypes(selfServices: { id: string; scope: 'self' }[]): Promise<(Type<unknown> | undefined)[]> {
+  private async getServiceTypes(
+    selfServices: { id: string; scope: 'self' }[],
+  ): Promise<(Type<unknown> | undefined)[]> {
     if (selfServices.length === 0) return [];
     return Promise.all(selfServices.map((e) => this.serviceRegistry.getType(e.id)));
   }
 
   private buildChildInjectorFromTypes(serviceTypes: (Type<unknown> | undefined)[]): Injector {
-    const providers = serviceTypes.filter((t): t is Type<unknown> => t != null).map((t) => ({ provide: t, useClass: t }));
-    return providers.length === 0 ? this.injector : Injector.create({ providers, parent: this.injector });
+    const providers = serviceTypes
+      .filter((t): t is Type<unknown> => t != null)
+      .map((t) => ({ provide: t, useClass: t }));
+    return providers.length === 0
+      ? this.injector
+      : Injector.create({ providers, parent: this.injector });
   }
 
   /** Set inputs and wire template/two-way effects. Single pass over inputs for large configs. */
   private setInputs(
     componentRef: ComponentRef<unknown>,
     desc: BlockDescription,
-    ctx: ResolverContext
+    ctx: ResolverContext,
   ): EffectRef[] {
     const effectRefs: EffectRef[] = [];
     const inputs = desc.inputs ?? {};
@@ -146,7 +160,7 @@ export class BlockLoaderService {
         if (twoWayKind === 'invalid-mix') {
           throw new Error(
             `Invalid input "${String(key)}": two-way ref "[( )]" cannot be mixed with literals or "{{ }}". ` +
-              `Use exactly "[(refPath)]" for two-way or "{{ refPath }}" for read-only.`
+              `Use exactly "[(refPath)]" for two-way or "{{ refPath }}" for read-only.`,
           );
         }
         if (twoWayKind === 'two-way') {
@@ -167,8 +181,8 @@ export class BlockLoaderService {
                       componentRef.changeDetectorRef.detectChanges();
                     }
                   },
-                  { injector: this.injector }
-                )
+                  { injector: this.injector },
+                ),
               );
               effectRefs.push(
                 effect(
@@ -176,8 +190,8 @@ export class BlockLoaderService {
                     const current = (modelSig as () => unknown)();
                     setRefValue(refPath, ctx, current);
                   },
-                  { injector: this.injector }
-                )
+                  { injector: this.injector },
+                ),
               );
             }
           }
@@ -185,7 +199,11 @@ export class BlockLoaderService {
         }
       }
       const str = value as string;
-      if (typeof value === 'string' && str.indexOf('{{') !== -1 && str.indexOf('}}', str.indexOf('{{')) !== -1) {
+      if (
+        typeof value === 'string' &&
+        str.indexOf('{{') !== -1 &&
+        str.indexOf('}}', str.indexOf('{{')) !== -1
+      ) {
         const initial = this.interpolateTemplate(str, ctx);
         if (componentRef.setInput) componentRef.setInput(key as never, initial as never);
         else inst[key] = initial;
@@ -196,8 +214,8 @@ export class BlockLoaderService {
               if (componentRef.setInput) componentRef.setInput(key as never, resolved as never);
               else inst[key] = resolved;
             },
-            { injector: this.injector }
-          )
+            { injector: this.injector },
+          ),
         );
         continue;
       }
@@ -242,7 +260,7 @@ export class BlockLoaderService {
   private resolveInputValue(
     value: unknown,
     ctx: ResolverContext,
-    options?: { preserveTwoWayRefs?: boolean }
+    options?: { preserveTwoWayRefs?: boolean },
   ): unknown {
     const preserveTwoWayRefs = options?.preserveTwoWayRefs ?? false;
     if (typeof value === 'string') {
@@ -251,7 +269,7 @@ export class BlockLoaderService {
         const preview = value.length > 200 ? `${value.slice(0, 200)}...` : value;
         throw new Error(
           `Invalid input: two-way ref "[( )]" cannot be mixed with literals or "{{ }}". ` +
-            `Use exactly "[(refPath)]" for two-way or "{{ refPath }}" for read-only. Got: ${JSON.stringify(preview)}`
+            `Use exactly "[(refPath)]" for two-way or "{{ refPath }}" for read-only. Got: ${JSON.stringify(preview)}`,
         );
       }
       if (twoWayKind === 'two-way') {
@@ -272,16 +290,13 @@ export class BlockLoaderService {
     }
     if (value != null && typeof value === 'object') {
       const obj = value as Record<string, unknown>;
-      const isNestedBlockDescriptor =
-        typeof obj['component'] === 'string' && obj['inputs'] != null;
+      const isNestedBlockDescriptor = typeof obj['component'] === 'string' && obj['inputs'] != null;
       const entries = Object.entries(value as Record<string, unknown>);
       const resolvedPairs: [string, unknown][] = [];
       let changed = false;
       for (const [k, v] of entries) {
         const childOptions =
-          isNestedBlockDescriptor && k === 'inputs'
-            ? { preserveTwoWayRefs: true }
-            : options;
+          isNestedBlockDescriptor && k === 'inputs' ? { preserveTwoWayRefs: true } : options;
         const resolved = this.resolveInputValue(v, ctx, childOptions);
         if (resolved !== v) changed = true;
         resolvedPairs.push([k, resolved]);
@@ -298,7 +313,7 @@ export class BlockLoaderService {
     componentRef: ComponentRef<unknown>,
     desc: BlockDescription,
     registry: BlockRegistry,
-    outputHandlers?: Record<string, (value: unknown) => void>
+    outputHandlers?: Record<string, (value: unknown) => void>,
   ): Subscription[] {
     const subs: Subscription[] = [];
     const outputs = desc.outputs ?? {};
@@ -306,8 +321,15 @@ export class BlockLoaderService {
     for (const [outputKey, outputValue] of Object.entries(outputs)) {
       const handler = createOutputHandler(outputValue, outputKey, registry, outputHandlers);
       const emitter = inst[outputKey];
-      if (emitter != null && typeof (emitter as { subscribe?: (fn: (v: unknown) => void) => { unsubscribe: () => void } }).subscribe === 'function') {
-        const sub = (emitter as { subscribe: (fn: (v: unknown) => void) => { unsubscribe: () => void } }).subscribe((v: unknown) => handler(v));
+      if (
+        emitter != null &&
+        typeof (
+          emitter as { subscribe?: (fn: (v: unknown) => void) => { unsubscribe: () => void } }
+        ).subscribe === 'function'
+      ) {
+        const sub = (
+          emitter as { subscribe: (fn: (v: unknown) => void) => { unsubscribe: () => void } }
+        ).subscribe((v: unknown) => handler(v));
         subs.push(sub as unknown as Subscription);
       }
     }

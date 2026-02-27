@@ -21,7 +21,7 @@ const navRow = {
   ],
 };
 
-/** Full block template for the app nav (RowLayout + HtmlBlock). Register as 'AppNav' for { id: 'AppNav' } reference. */
+/** Full block template for the app nav (RowLayout + HtmlBlock). Register as 'AppNav' for { blockId: 'AppNav' } reference. */
 export const appNavBlock = {
   component: 'RowLayout',
   id: 'AppNav',

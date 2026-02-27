@@ -15,7 +15,7 @@ const personFormBlock = {
       age: 28,
     },
     rows: [
-      { columns: [{ id: 'AppNav' }] },
+      { columns: [{ blockId: 'AppNav' }] },
       {
         columns: [
           {
@@ -86,9 +86,9 @@ export const routes = [
     component: 'BlockHost',
     title: 'Person info',
     data: {
-      // Reuse by id; optional blockDefinition deep-merges overrides (e.g. inputs.model only).
+      // Reuse by blockId; optional blockDefinition deep-merges overrides (e.g. inputs.model only).
       // Example with override: block: { blockId: 'PersonForm', blockDefinition: { inputs: { model: {...} } } }
-      block: { id: 'PersonForm' },
+      block: { blockId: 'PersonForm' },
       blockDefinitions: { PersonForm: personFormBlock },
     },
   } as const,

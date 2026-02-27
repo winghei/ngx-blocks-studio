@@ -20,27 +20,32 @@ const OutputReferenceSchema = z.object({
   reference: z.string().min(1),
   method: z.string().min(1),
   params: z.union([z.array(z.unknown()), z.record(z.string(), z.unknown())]).optional(),
-  then: z.array(z.object({
-    reference: z.string().min(1),
-    method: z.string().min(1),
-    params: z.union([z.array(z.unknown()), z.record(z.string(), z.unknown())]).optional(),
-  })).optional(),
-  onSuccess: z.object({
-    reference: z.string().min(1),
-    method: z.string().min(1),
-    params: z.union([z.array(z.unknown()), z.record(z.string(), z.unknown())]).optional(),
-  }).optional(),
-  onError: z.object({
-    reference: z.string().min(1),
-    method: z.string().min(1),
-    params: z.union([z.array(z.unknown()), z.record(z.string(), z.unknown())]).optional(),
-  }).optional(),
+  then: z
+    .array(
+      z.object({
+        reference: z.string().min(1),
+        method: z.string().min(1),
+        params: z.union([z.array(z.unknown()), z.record(z.string(), z.unknown())]).optional(),
+      }),
+    )
+    .optional(),
+  onSuccess: z
+    .object({
+      reference: z.string().min(1),
+      method: z.string().min(1),
+      params: z.union([z.array(z.unknown()), z.record(z.string(), z.unknown())]).optional(),
+    })
+    .optional(),
+  onError: z
+    .object({
+      reference: z.string().min(1),
+      method: z.string().min(1),
+      params: z.union([z.array(z.unknown()), z.record(z.string(), z.unknown())]).optional(),
+    })
+    .optional(),
 });
 
-const OutputValueSchema = z.union([
-  z.record(z.string(), z.unknown()),
-  OutputReferenceSchema,
-]);
+const OutputValueSchema = z.union([z.record(z.string(), z.unknown()), OutputReferenceSchema]);
 
 /**
  * Block description: JSON-serializable descriptor for dynamic block loading.
@@ -49,10 +54,10 @@ const OutputValueSchema = z.union([
 export const BlockDescriptionSchema = z.object({
   component: z.string().min(1),
   id: z.string().min(1).optional(),
-  services: z.union([
-    ServiceEntrySchema,
-    z.array(ServiceEntrySchema),
-  ]).optional().default([]),
+  services: z
+    .union([ServiceEntrySchema, z.array(ServiceEntrySchema)])
+    .optional()
+    .default([]),
   inputs: z.record(z.string(), z.unknown()).optional(),
   outputs: z.record(z.string(), OutputValueSchema).optional(),
 });
@@ -62,19 +67,13 @@ export type ServiceEntry = z.infer<typeof ServiceEntrySchema>;
 export type OutputReference = z.infer<typeof OutputReferenceSchema>;
 
 /** Normalize services to array. */
-export function normalizeServices(
-  services: BlockDescription['services']
-): ServiceEntry[] {
+export function normalizeServices(services: BlockDescription['services']): ServiceEntry[] {
   if (services == null) return [];
   return Array.isArray(services) ? services : [services];
 }
 
-export function parseBlockDescription(data: unknown): BlockDescription {
-  return BlockDescriptionSchema.parse(data);
-}
-
 export function safeParseBlockDescription(
-  data: unknown
+  data: unknown,
 ): ReturnType<typeof BlockDescriptionSchema.safeParse> {
   return BlockDescriptionSchema.safeParse(data);
 }
@@ -90,12 +89,15 @@ export function isOutputReference(value: unknown): value is OutputReference {
 }
 
 /**
- * Reference to a registered block: { id: string } or { blockId: string, blockDefinition?: object }.
- * When blockDefinition is provided, it is deep-merged onto the base definition so only
+ * Reference to a registered block: { blockId: string, blockDefinition?: object }.
+ * Resolution uses blockId only to look up the registered block description.
+ * When blockDefinition is provided, it is deep-merged onto the base so only
  * specified properties override (e.g. inputs.model); other keys are preserved.
  */
 export interface BlockReference {
+  /** Used by isBlockReference only; resolution uses blockId. */
   id?: string;
+  /** Registered block id used to resolve the block description. */
   blockId?: string;
   blockDefinition?: Record<string, unknown>;
 }
@@ -106,11 +108,6 @@ export function isBlockReference(value: unknown): value is BlockReference {
   return typeof id === 'string' && id.length > 0;
 }
 
-/** @deprecated Use isBlockReference. Id-only is still supported as { id: string }. */
-export function isIdReference(value: unknown): value is { id: string } {
-  return isBlockReference(value) && !(value as BlockReference).blockDefinition;
-}
-
 /**
  * Deep-merge override onto base. Only keys present in override are changed; nested objects
  * are merged recursively so e.g. override.inputs.model does not remove base.inputs.rows.
@@ -118,7 +115,7 @@ export function isIdReference(value: unknown): value is { id: string } {
  */
 export function deepMergeBlockDefinition(
   base: Record<string, unknown>,
-  override: Record<string, unknown>
+  override: Record<string, unknown>,
 ): Record<string, unknown> {
   const result = { ...base };
   for (const key of Object.keys(override)) {
@@ -134,7 +131,7 @@ export function deepMergeBlockDefinition(
     ) {
       result[key] = deepMergeBlockDefinition(
         baseVal as Record<string, unknown>,
-        overrideVal as Record<string, unknown>
+        overrideVal as Record<string, unknown>,
       );
     } else {
       result[key] = overrideVal;
@@ -152,21 +149,25 @@ export function deepMergeBlockDefinition(
 export function resolveBlockReference(
   ref: BlockReference,
   blockDefinitions: Record<string, unknown> | null | undefined,
-  registry: BlockDefinitionsRegistry = BlockDefinitionsRegistry.getInstance()
 ): Record<string, unknown> {
-  const id = ref.blockId ?? ref.id;
-  if (!id) throw new Error('Block reference must have id or blockId.');
+  const blockId = ref.blockId;
+  const id = ref.id;
+  const registry: BlockDefinitionsRegistry = BlockDefinitionsRegistry.getInstance();
+  if (!blockId || typeof blockId !== 'string')
+    throw new Error('Block reference must have blockId.');
 
   let base: unknown;
-  if (blockDefinitions && Object.prototype.hasOwnProperty.call(blockDefinitions, id)) {
-    base = blockDefinitions[id];
+  if (blockDefinitions && Object.prototype.hasOwnProperty.call(blockDefinitions, blockId)) {
+    base = blockDefinitions[blockId];
   } else {
-    base = registry.get(id);
+    base = registry.get(blockId);
   }
 
-  if (base == null || typeof base !== 'object') throw new Error(`Block "${id}" has no definition.`);
+  if (base == null || typeof base !== 'object')
+    throw new Error(`Block "${blockId}" has no definition.`);
 
-  const baseObj = base as Record<string, unknown>;
+  const baseObj = { ...base, id };
+
   const overrides = ref.blockDefinition;
   if (overrides == null || typeof overrides !== 'object' || Object.keys(overrides).length === 0)
     return { ...baseObj };

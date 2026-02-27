@@ -8,7 +8,7 @@ const loginBlock = {
   inputs: {
     model: { username: '', password: '' },
     rows: [
-      { columns: [{ id: 'AppNav' }] },
+      { columns: [{ blockId: 'AppNav' }] },
       {
         columns: [
           {
@@ -60,7 +60,7 @@ export const loginRoute = {
   component: 'BlockHost',
   title: 'Login',
   data: {
-    block: { id: 'LoginPage' },
+    block: { blockId: 'LoginPage' },
     blockDefinitions: { LoginPage: loginBlock },
   },
 } as const;

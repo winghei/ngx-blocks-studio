@@ -8,7 +8,8 @@ const dashboardBlock = {
   inputs: {
     model: { note: '' },
     rows: [
-      { columns: [{ id: 'AppNav' }] },
+      { columns: [{ blockId: 'AppNav' }] },
+      { columns: [{ blockId: 'AppNav' }] },
       {
         columns: [
           {
@@ -50,7 +51,7 @@ export const dashboardRoute = {
   component: 'BlockHost',
   title: 'Dashboard',
   data: {
-    block: { id: 'DashboardPage' },
+    block: { blockId: 'DashboardPage' },
     blockDefinitions: { DashboardPage: dashboardBlock },
   },
 } as const;
