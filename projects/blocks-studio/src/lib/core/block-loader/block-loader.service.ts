@@ -16,7 +16,6 @@ import {
   isBlockReference,
   resolveBlockReference,
 } from './block-description.schema';
-import { BlockDefinitionsRegistry } from './block-definitions.registry';
 import { BlockRegistryImpl, type BlockRegistry, type BlockInstanceHandle } from './block-registry';
 import { ResolverContext, getRefValue, setRefValue } from './ref-resolver';
 import { classifyTwoWayString, parseTwoWayRef } from './ref-expressions';
@@ -50,11 +49,7 @@ export class BlockLoaderService {
   ): Promise<BlockLoadResult> {
     let resolved: unknown = description;
     if (isBlockReference(description)) {
-      const definitions = {
-        ...BlockDefinitionsRegistry.getInstance().getAll(),
-        ...(options?.blockDefinitions ?? {}),
-      };
-      resolved = resolveBlockReference(description, definitions);
+      resolved = resolveBlockReference(description, options?.blockDefinitions);
     }
     const parsed = safeParseBlockDescription(resolved);
     if (!parsed.success) {

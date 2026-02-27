@@ -15,7 +15,6 @@ import {
   isBlockReference,
   resolveBlockReference,
 } from './block-description.schema';
-import { BlockDefinitionsRegistry } from './block-definitions.registry';
 
 /** Compact key for services to avoid JSON.stringify of large config in effect. */
 function getServicesKey(services: BlockDescription['services']): string {
@@ -55,8 +54,6 @@ export class BlockDirective {
       const desc = this.description();
       const outputHandlers = this.outputHandlers();
       const inputDefs = this.blockDefinitions();
-      const global = BlockDefinitionsRegistry.getInstance().getAll();
-      const definitions = { ...global, ...(inputDefs ?? {}) };
 
       if (desc == null) {
         this.lastDescRef = null;
@@ -66,7 +63,7 @@ export class BlockDirective {
       }
 
       const resolved = isBlockReference(desc)
-        ? resolveBlockReference(desc, definitions)
+        ? resolveBlockReference(desc, inputDefs ?? undefined)
         : desc;
 
       let data: BlockDescription;
@@ -99,7 +96,7 @@ export class BlockDirective {
         .load(resolved, this.viewContainerRef, {
           outputHandlers: Object.keys(outputHandlers).length > 0 ? outputHandlers : undefined,
           registry,
-          blockDefinitions: definitions ?? undefined,
+          blockDefinitions: inputDefs ?? undefined,
         })
         .then((result) => {
           if (generation !== this.loadGeneration) return;

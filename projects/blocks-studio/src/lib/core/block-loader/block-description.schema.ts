@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { BlockDefinitionsRegistry } from './block-definitions.registry';
 
 /**
  * Service entry: root-scoped (string id) or self-scoped ({ id, scope: "self" }).
@@ -143,18 +144,28 @@ export function deepMergeBlockDefinition(
 }
 
 /**
- * Resolve a block reference to a full description using blockDefinitions.
- * If blockDefinition is present, it is deep-merged onto the base; otherwise returns the base.
+ * Resolve a block reference to a full description using optional per-call definitions
+ * and the global BlockDefinitionsRegistry. Per-call blockDefinitions take precedence
+ * over global entries. If blockDefinition is present, it is deep-merged onto the base;
+ * otherwise returns a shallow copy of the base.
  */
 export function resolveBlockReference(
   ref: BlockReference,
-  blockDefinitions: Record<string, unknown>
+  blockDefinitions: Record<string, unknown> | null | undefined,
+  registry: BlockDefinitionsRegistry = BlockDefinitionsRegistry.getInstance()
 ): Record<string, unknown> {
   const id = ref.blockId ?? ref.id;
   if (!id) throw new Error('Block reference must have id or blockId.');
-  const base = blockDefinitions[id];
-  if (base == null || typeof base !== 'object')
-    throw new Error(`Block "${id}" has no definition in blockDefinitions.`);
+
+  let base: unknown;
+  if (blockDefinitions && Object.prototype.hasOwnProperty.call(blockDefinitions, id)) {
+    base = blockDefinitions[id];
+  } else {
+    base = registry.get(id);
+  }
+
+  if (base == null || typeof base !== 'object') throw new Error(`Block "${id}" has no definition.`);
+
   const baseObj = base as Record<string, unknown>;
   const overrides = ref.blockDefinition;
   if (overrides == null || typeof overrides !== 'object' || Object.keys(overrides).length === 0)
