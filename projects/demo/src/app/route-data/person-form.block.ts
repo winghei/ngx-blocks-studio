@@ -8,12 +8,7 @@ const personFormBlock = {
   id: 'PersonForm',
   services: [{ id: 'FormState', scope: 'self' as const }],
   inputs: {
-    model: {
-      firstName: 'Jane',
-      lastName: 'Doe',
-      email: 'jane.doe@example.com',
-      age: 28,
-    },
+  
     rows: [
       { columns: [{ blockId: 'AppNav' }] },
       {
@@ -21,7 +16,8 @@ const personFormBlock = {
           {
             component: 'HtmlBlock',
             inputs: {
-              html: 'hello {{PersonForm.instance.FormState.firstName }} {{PersonForm.instance.FormState.lastName}} {{PersonForm.instance.FormState.age}}',
+              model: '{{PersonForm.instance.FormState.model}}',
+              html: 'hello  {{firstName}} {{PersonForm.instance.FormState.lastName}} {{age}}',
             },
           },
         ],
@@ -88,7 +84,13 @@ export const routes = [
     data: {
       // Reuse by blockId; optional blockDefinition deep-merges overrides (e.g. inputs.model only).
       // Example with override: block: { blockId: 'PersonForm', blockDefinition: { inputs: { model: {...} } } }
-      block: { blockId: 'PersonForm' },
+      block: { blockId: 'PersonForm', id: 'PersonForm' },
+      model: {
+        firstName: 'Jane',
+        lastName: 'Doe',
+        email: 'jane.doe@example.com',
+        age: 28,
+      },
       blockDefinitions: { PersonForm: personFormBlock },
     },
   } as const,

@@ -1,27 +1,36 @@
 import {
-  Type,
-  Injector,
-  Injectable,
-  inject,
   ComponentRef,
+  Injectable,
+  Injector,
+  Type,
   ViewContainerRef,
   effect,
+  inject,
+  isSignal,
   type EffectRef,
+  type Signal,
 } from '@angular/core';
 import { Subscription } from 'rxjs';
-import {
-  BlockDescription,
-  safeParseBlockDescription,
-  normalizeServices,
-  isBlockReference,
-  resolveBlockReference,
-} from './block-description.schema';
-import { BlockRegistryImpl, type BlockRegistry, type BlockInstanceHandle } from './block-registry';
-import { ResolverContext, getRefValue, setRefValue } from './ref-resolver';
-import { classifyTwoWayString, parseTwoWayRef } from './ref-expressions';
-import { createOutputHandler } from './output-reference';
 import { ComponentRegistry } from '../registry/component.registry';
 import { ServiceRegistry } from '../registry/service.registry';
+import {
+  BlockDescription,
+  isBlockReference,
+  normalizeServices,
+  resolveBlockReference,
+  safeParseBlockDescription,
+} from './block-description.schema';
+import { BlockRegistryImpl, type BlockInstanceHandle, type BlockRegistry } from './block-registry';
+import { createOutputHandler } from './output-reference';
+import { classifyTwoWayString, parseTwoWayRef } from './ref-expressions';
+import {
+  ResolverContext,
+  getRefSignal,
+  getRefValue,
+  getValueByPath,
+  resolveRefPath,
+  setRefValue,
+} from './ref-resolver';
 
 export interface BlockLoadOptions {
   outputHandlers?: Record<string, (value: unknown) => void>;
@@ -45,6 +54,7 @@ export class BlockLoaderService {
   async load(
     description: unknown,
     viewContainerRef: ViewContainerRef,
+    model: Signal<unknown | undefined>,
     options?: BlockLoadOptions,
   ): Promise<BlockLoadResult> {
     let resolved: unknown = description;
@@ -69,7 +79,7 @@ export class BlockLoaderService {
 
     const services = normalizeServices(desc.services);
     const selfServices = services.filter(
-      (s): s is { id: string; scope: 'self' } =>
+      (s): s is { id: string; scope: 'self'; alias?: string } =>
         typeof s === 'object' && (s as { scope?: string }).scope === 'self',
     );
     const serviceTypes = await this.getServiceTypes(selfServices);
@@ -81,21 +91,13 @@ export class BlockLoaderService {
     const blockInstance: Record<string, unknown> = {};
     for (let i = 0; i < selfServices.length; i++) {
       const id = selfServices[i].id;
+      const alias = selfServices[i].alias ?? id;
       const serviceType = serviceTypes[i];
       if (serviceType) {
         const svc = componentRef.injector.get(serviceType as Type<unknown>);
-        if (svc != null) blockInstance[id] = svc;
+        if (svc != null) blockInstance[alias] = svc;
       }
     }
-    if (desc.inputs?.['model'] != null) {
-      const model = desc.inputs['model'];
-      for (const svc of Object.values(blockInstance)) {
-        if (svc != null && typeof (svc as Record<string, unknown>)['setModel'] === 'function') {
-          ((svc as Record<string, unknown>)['setModel'] as (v: unknown) => void)(model);
-        }
-      }
-    }
-
     const ctx: ResolverContext = {
       registry,
       currentBlockId: desc.id ?? undefined,
@@ -103,7 +105,13 @@ export class BlockLoaderService {
     };
     const handle: BlockInstanceHandle = { instance: blockInstance };
     if (desc.id != null && desc.id !== '') registry.register(desc.id, handle);
-    let currentEffectRefs = this.setInputs(componentRef, desc, ctx);
+
+    this.applyInitialModel(desc, ctx, blockInstance, model);
+
+    let currentEffectRefs = this.setInputs(componentRef, desc, ctx, model);
+    currentEffectRefs = currentEffectRefs.concat(
+      this.applyModelReactivity(desc, ctx, blockInstance, model),
+    );
     const subscriptions = this.wireOutputs(componentRef, desc, registry, options?.outputHandlers);
 
     const doDestroy = (): void => {
@@ -120,7 +128,11 @@ export class BlockLoaderService {
       const p = safeParseBlockDescription(newDesc);
       if (p.success) {
         currentEffectRefs.forEach((ref) => ref.destroy());
-        currentEffectRefs = this.setInputs(componentRef, p.data, ctx);
+        this.applyInitialModel(p.data, ctx, blockInstance, model);
+        currentEffectRefs = this.setInputs(componentRef, p.data, ctx, model);
+        currentEffectRefs = currentEffectRefs.concat(
+          this.applyModelReactivity(p.data, ctx, blockInstance, model),
+        );
       }
     };
 
@@ -149,12 +161,15 @@ export class BlockLoaderService {
     componentRef: ComponentRef<unknown>,
     desc: BlockDescription,
     ctx: ResolverContext,
+    blockModel?: Signal<unknown | undefined>,
   ): EffectRef[] {
     const effectRefs: EffectRef[] = [];
     const inputs = desc.inputs ?? {};
     const inst = componentRef.instance as Record<string, unknown>;
     for (const [key, value] of Object.entries(inputs)) {
-      if (key === 'model') continue;
+      if (key === 'model') {
+        continue;
+      }
       if (typeof value === 'string') {
         const twoWayKind = classifyTwoWayString(value);
         if (twoWayKind === 'invalid-mix') {
@@ -166,11 +181,8 @@ export class BlockLoaderService {
         if (twoWayKind === 'two-way') {
           const refPath = parseTwoWayRef(value);
           if (refPath) {
-            const initial = getRefValue(refPath, ctx);
-            if (componentRef.setInput) componentRef.setInput(key as never, initial as never);
-            else inst[key] = initial;
             const modelSig = inst[key];
-            if (modelSig != null && typeof modelSig === 'function') {
+            if (modelSig != null && isSignal(modelSig)) {
               effectRefs.push(
                 effect(
                   () => {
@@ -187,7 +199,7 @@ export class BlockLoaderService {
               effectRefs.push(
                 effect(
                   () => {
-                    const current = (modelSig as () => unknown)();
+                    const current = modelSig();
                     setRefValue(refPath, ctx, current);
                   },
                   { injector: this.injector },
@@ -204,13 +216,15 @@ export class BlockLoaderService {
         str.indexOf('{{') !== -1 &&
         str.indexOf('}}', str.indexOf('{{')) !== -1
       ) {
-        const initial = this.interpolateTemplate(str, ctx);
-        if (componentRef.setInput) componentRef.setInput(key as never, initial as never);
-        else inst[key] = initial;
         effectRefs.push(
           effect(
             () => {
-              const resolved = this.interpolateTemplate(str, ctx);
+              const modelSig = ctx.currentInstance?.['model'];
+              const model =
+                modelSig != null && isSignal(modelSig)
+                  ? (modelSig as Signal<unknown>)()
+                  : (modelSig as unknown);
+              const resolved = this.interpolateTemplateMixed(str, ctx, model);
               if (componentRef.setInput) componentRef.setInput(key as never, resolved as never);
               else inst[key] = resolved;
             },
@@ -219,11 +233,111 @@ export class BlockLoaderService {
         );
         continue;
       }
+
       const resolved = this.resolveInputValue(value, ctx);
       if (componentRef.setInput) componentRef.setInput(key as never, resolved as never);
       else inst[key] = resolved;
     }
     return effectRefs;
+  }
+
+  /** Resolve model from desc (interpolate ref if string) and set on services and blockInstance. */
+  private applyInitialModel(
+    desc: BlockDescription,
+    ctx: ResolverContext,
+    blockInstance: Record<string, unknown>,
+    blockModel: Signal<unknown | undefined>,
+  ): void {
+    const rawModel = desc.inputs?.['model'];
+    if (rawModel === undefined || rawModel === null) {
+      const model = blockModel();
+      for (const svc of Object.values(blockInstance)) {
+        if (svc != null && typeof (svc as Record<string, unknown>)['setModel'] === 'function') {
+          ((svc as Record<string, unknown>)['setModel'] as (v: unknown) => void)(model);
+        }
+      }
+      blockInstance['model'] = blockModel;
+      return;
+    }
+    let model: unknown = rawModel;
+    if (typeof rawModel === 'string') {
+      const refPath = rawModel.trim().replace(/^\{\{\s*|\s*\}\}$/g, '');
+      if (refPath.length > 0) {
+        const refSignal = getRefSignal(refPath, ctx);
+    
+        if (refSignal != null) {
+          model = refSignal();
+          blockInstance['model'] = refSignal;
+        } else {
+          model = getRefValue(refPath, ctx);
+        }
+      }
+    }
+    for (const svc of Object.values(blockInstance)) {
+      if (svc != null && typeof (svc as Record<string, unknown>)['setModel'] === 'function') {
+        ((svc as Record<string, unknown>)['setModel'] as (v: unknown) => void)(model);
+      }
+    }
+  }
+
+  /** If model is a ref string, return an effect that keeps setModel/blockInstance in sync with the ref. */
+  private applyModelReactivity(
+    desc: BlockDescription,
+    ctx: ResolverContext,
+    blockInstance: Record<string, unknown>,
+    blockModel: Signal<unknown | undefined>,
+  ): EffectRef[] {
+    const rawModel = desc.inputs?.['model'];
+    const refPath =
+      rawModel != null && typeof rawModel === 'string'
+        ? rawModel.trim().replace(/^\{\{\s*|\s*\}\}$/g, '')
+        : '';
+    if (refPath.length === 0) {
+      return [];
+    }
+    const effectRef = effect(
+      () => {
+        const model = refPath ? getRefValue(refPath, ctx) : blockModel();
+        for (const svc of Object.values(blockInstance)) {
+          if (svc != null && typeof (svc as Record<string, unknown>)['setModel'] === 'function') {
+            ((svc as Record<string, unknown>)['setModel'] as (v: unknown) => void)(model);
+          }
+        }
+      },
+      { injector: this.injector },
+    );
+    return [effectRef];
+  }
+
+  /**
+   * Replace each {{ refPath }} with a value: resolve as ref first (e.g. Person.instance.AuthState.firstName),
+   * else as model path (e.g. firstName, instance.model.firstName). Allows mixing both in one template.
+   */
+  private interpolateTemplateMixed(template: string, ctx: ResolverContext, model: unknown): string {
+    const parts: string[] = [];
+    let s = template;
+    for (let i = 0; i < BlockLoaderService.INTERPOLATE_MAX_PLACEHOLDERS; i++) {
+      const start = s.indexOf('{{');
+      if (start === -1) {
+        parts.push(s);
+        break;
+      }
+      parts.push(s.slice(0, start));
+      const end = s.indexOf('}}', start);
+      if (end === -1) {
+        parts.push(s.slice(start));
+        break;
+      }
+      const ref = s.slice(start + 2, end).trim();
+      const val = ref
+        ? resolveRefPath(ref, ctx) != null
+          ? getRefValue(ref, ctx)
+          : getValueByPath(model, ref)
+        : null;
+      parts.push(val != null ? String(val) : '');
+      s = s.slice(end + 2);
+    }
+    return parts.join('');
   }
 
   /** Replace all {{ refPath }} with resolved values. Uses parts array + join to avoid N string concats. */

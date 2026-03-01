@@ -1,14 +1,7 @@
-import {
-  Directive,
-  input,
-  effect,
-  ViewContainerRef,
-  inject,
-  DestroyRef,
-} from '@angular/core';
+import { Directive, input, effect, ViewContainerRef, inject, DestroyRef } from '@angular/core';
 import { BlockLoaderService, type BlockLoadResult } from './block-loader.service';
 import type { BlockRegistry } from './block-registry';
-import type { BlockDescription } from './block-description.schema';
+import type { BlockDescription, BlockInput } from './block-description.schema';
 import {
   safeParseBlockDescription,
   normalizeServices,
@@ -20,7 +13,13 @@ import {
 function getServicesKey(services: BlockDescription['services']): string {
   const arr = normalizeServices(services);
   if (arr.length === 0) return '';
-  return arr.map((s) => (typeof s === 'string' ? s : `${(s as { id: string }).id}:${(s as { scope?: string }).scope ?? ''}`)).join(',');
+  return arr
+    .map((s) =>
+      typeof s === 'string'
+        ? s
+        : `${(s as { id: string }).id}:${(s as { scope?: string }).scope ?? ''}`,
+    )
+    .join(',');
 }
 
 @Directive({
@@ -33,13 +32,15 @@ export class BlockDirective {
   private readonly destroyRef = inject(DestroyRef);
 
   /** Full description, or { id } / { blockId, blockDefinition? } to reuse/override from blockDefinitions. */
-  readonly description = input<unknown | null>(null);
+  readonly description = input<BlockInput | null>(null);
   /** Handlers for component outputs; keys match descriptor.outputs. */
   readonly outputHandlers = input<Record<string, (value: unknown) => void>>({});
   /** Registry for block instances by id; pass from root so nested blocks share it. */
   readonly blockRegistry = input<BlockRegistry | null>(null);
   /** Map id → full description; used when description is a block reference (id/blockId). */
   readonly blockDefinitions = input<Record<string, unknown> | null>(null);
+  /** Model for the block. */
+  readonly model = input<unknown | undefined>(undefined);
 
   private loadResult: BlockLoadResult | null = null;
   private loadedComponent: string | null = null;
@@ -93,9 +94,10 @@ export class BlockDirective {
       const registry = this.blockRegistry() ?? undefined;
       const generation = ++this.loadGeneration;
       this.loader
-        .load(resolved, this.viewContainerRef, {
+        .load(resolved, this.viewContainerRef, this.model, {
           outputHandlers: Object.keys(outputHandlers).length > 0 ? outputHandlers : undefined,
           registry,
+
           blockDefinitions: inputDefs ?? undefined,
         })
         .then((result) => {

@@ -9,11 +9,12 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { BlockDirective } from 'ngx-blocks-studio';
 import { BlockRegistryService } from '../../core/services/block-registry.service';
 import type { BlockRegistry } from 'ngx-blocks-studio';
+import { CommonModule } from '@angular/common';
 
 @Component({
   selector: 'app-block-host',
   standalone: true,
-  imports: [BlockDirective],
+  imports: [BlockDirective, CommonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './block-host.component.html',
   styleUrl: './block-host.component.scss',
@@ -30,7 +31,7 @@ export class BlockHostComponent {
   readonly blockDefinitions = computed(
     () => (this.routeData()['blockDefinitions'] as Record<string, unknown> | undefined) ?? null
   );
-
+  readonly model = computed(() => this.routeData()['model'] ?? undefined);
   getRegistry(): BlockRegistry {
     return this.blockRegistry.registry;
   }

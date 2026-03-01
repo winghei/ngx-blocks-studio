@@ -9,6 +9,7 @@ const ServiceEntrySchema = z.union([
   z.object({
     id: z.string().min(1),
     scope: z.literal('self'),
+    alias: z.string().min(1).optional(),
   }),
 ]);
 
@@ -63,6 +64,7 @@ export const BlockDescriptionSchema = z.object({
 });
 
 export type BlockDescription = z.infer<typeof BlockDescriptionSchema>;
+export type BlockInput = z.input<typeof BlockDescriptionSchema>;
 export type ServiceEntry = z.infer<typeof ServiceEntrySchema>;
 export type OutputReference = z.infer<typeof OutputReferenceSchema>;
 

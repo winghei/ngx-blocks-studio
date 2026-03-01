@@ -1,4 +1,4 @@
-import { computed, type Signal } from '@angular/core';
+import { computed, isSignal, type Signal } from '@angular/core';
 import type { BlockRegistry } from './block-registry';
 import { parseRefPath } from './ref-expressions';
 
@@ -52,6 +52,34 @@ export function resolveRefPath(
 }
 
 /**
+ * Get a value from an object by dot-notation path (e.g. "name.firstName" -> obj.name?.firstName).
+ * Returns undefined if any segment is null/undefined or not an object.
+ */
+export function getValueByPath(obj: unknown, path: string): unknown {
+  if (obj == null) return undefined;
+  const parts = path.trim().split('.').filter(Boolean);
+  let current: unknown = obj;
+  for (const part of parts) {
+    if (current == null || typeof current !== 'object') return undefined;
+    current = (current as Record<string, unknown>)[part];
+  }
+  return current;
+}
+
+/**
+ * Return true if the value at ref path is an Angular signal (so reading it in an effect would be reactive).
+ */
+export function refPathResolvesToSignal(refPath: string, ctx: ResolverContext): boolean {
+  const resolved = resolveRefPath(refPath, ctx);
+  if (resolved == null) return false;
+  const val =
+    resolved.path.length === 0
+      ? resolved.target
+      : (resolved.target as Record<string, unknown>)?.[resolved.path[0]];
+  return val != null && isSignal(val);
+}
+
+/**
  * Get value at ref path (read-only). Returns undefined if not found.
  */
 export function getRefValue(refPath: string, ctx: ResolverContext): unknown {
@@ -63,10 +91,26 @@ export function getRefValue(refPath: string, ctx: ResolverContext): unknown {
   const key = resolved.path[0];
   const val = obj?.[key];
   // Unwrap Angular signals and other getter functions by calling them
+  if (val != null && isSignal(val)) {
+    return val();
+  }
   if (typeof val === 'function') {
     return (val as () => unknown)();
   }
   return val;
+}
+
+export function getRefSignal(refPath: string, ctx: ResolverContext): Signal<unknown> | undefined {
+  const resolved = resolveRefPath(refPath, ctx);
+  if (resolved == null) return undefined;
+  const val =
+    resolved.path.length === 0
+      ? resolved.target
+      : (resolved.target as Record<string, unknown>)?.[resolved.path[0]];
+  if (val != null && isSignal(val)) {
+    return val as Signal<unknown>;
+  }
+  return undefined;
 }
 
 /**
@@ -78,11 +122,13 @@ export function setRefValue(refPath: string, ctx: ResolverContext, value: unknow
   const obj = resolved.target as Record<string, unknown>;
   const key = resolved.path[0];
   const val = obj?.[key];
-  // Angular signals are callable (typeof 'function') but have .set; treat any value with .set as writable so we don't overwrite the signal with a string
+  // use isSignal so we only treat real signals as writable
+  type WritableSignalLike = { set: (v: unknown) => void };
   const writable =
     val != null &&
-    typeof (val as Record<string, unknown>)['set'] === 'function'
-      ? (val as { set: (v: unknown) => void })
+    isSignal(val) &&
+    typeof (val as unknown as WritableSignalLike).set === 'function'
+      ? (val as unknown as WritableSignalLike)
       : null;
   if (writable) {
     writable.set(value);

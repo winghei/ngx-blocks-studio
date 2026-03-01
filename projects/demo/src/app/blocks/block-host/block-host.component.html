@@ -1,8 +1,10 @@
 @if (blockDescription(); as desc) {
   <div class="block-host">
+ 
     <div
       block
       [description]="desc"
+      [model]="model()"
       [blockRegistry]="getRegistry()"
       [blockDefinitions]="blockDefinitions()">
     </div>
