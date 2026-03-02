@@ -82,19 +82,34 @@ export class BlockLoaderService {
       (s): s is { id: string; scope: 'self'; alias?: string } =>
         typeof s === 'object' && (s as { scope?: string }).scope === 'self',
     );
-    const serviceTypes = await this.getServiceTypes(selfServices);
-    const childInjector = this.buildChildInjectorFromTypes(serviceTypes);
+    const rootEntries = services
+      .filter((s) => typeof s === 'string' || (s as { scope?: string }).scope !== 'self')
+      .map((s): { id: string; alias: string } =>
+        typeof s === 'string'
+          ? { id: s, alias: s }
+          : { id: (s as { id: string; alias?: string }).id, alias: (s as { id: string; alias?: string }).alias ?? (s as { id: string }).id },
+      );
+    const selfServiceTypes = await this.getServiceTypes(selfServices);
+    const rootServiceTypes = await this.getServiceTypes(rootEntries);
+    const childInjector = this.buildChildInjectorFromTypes(selfServiceTypes);
     const componentRef = viewContainerRef.createComponent(componentType as Type<unknown>, {
       injector: childInjector,
     });
 
     const blockInstance: Record<string, unknown> = {};
     for (let i = 0; i < selfServices.length; i++) {
-      const id = selfServices[i].id;
-      const alias = selfServices[i].alias ?? id;
-      const serviceType = serviceTypes[i];
+      const alias = selfServices[i].alias ?? selfServices[i].id;
+      const serviceType = selfServiceTypes[i];
       if (serviceType) {
         const svc = componentRef.injector.get(serviceType as Type<unknown>);
+        if (svc != null) blockInstance[alias] = svc;
+      }
+    }
+    for (let i = 0; i < rootEntries.length; i++) {
+      const alias = rootEntries[i].alias;
+      const serviceType = rootServiceTypes[i];
+      if (serviceType) {
+        const svc = this.injector.get(serviceType as Type<unknown>);
         if (svc != null) blockInstance[alias] = svc;
       }
     }
@@ -140,11 +155,9 @@ export class BlockLoaderService {
   }
 
   /** Resolve all service types in parallel (single batch for load). */
-  private async getServiceTypes(
-    selfServices: { id: string; scope: 'self' }[],
-  ): Promise<(Type<unknown> | undefined)[]> {
-    if (selfServices.length === 0) return [];
-    return Promise.all(selfServices.map((e) => this.serviceRegistry.getType(e.id)));
+  private async getServiceTypes(entries: { id: string }[]): Promise<(Type<unknown> | undefined)[]> {
+    if (entries.length === 0) return [];
+    return Promise.all(entries.map((e) => this.serviceRegistry.getType(e.id)));
   }
 
   private buildChildInjectorFromTypes(serviceTypes: (Type<unknown> | undefined)[]): Injector {
