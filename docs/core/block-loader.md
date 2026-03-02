@@ -7,8 +7,8 @@ The block loader renders Angular components from a **JSON description**. It reso
 | Pass | When to use |
 |------|------------------|
 | Full description `{ component, id?, inputs?, ... }` | Single use, no reuse. |
-| Reference `{ id: 'X' }` or `{ blockId: 'X' }` | Reuse registered block as-is; need `blockDefinitions`. |
-| Reference + overrides `{ blockId: 'X', blockDefinition: { inputs: { model: {...} } } }` | Same block, override only some keys (deep merge). |
+| Reference `{ blockId: 'X' }` | Reuse block as-is; definition from `blockDefinitions` or global BlockDefinitionsRegistry. |
+| Reference + overrides `{ blockId: 'X', blockDefinition: { inputs: { ... } } }` | Same block, override only some input keys (deep merge). Model is passed via `[model]` / `load(..., model, ...)`, not `inputs.model`. |
 
 **Source:** `projects/blocks-studio/src/lib/core/block-loader/`
 
@@ -17,6 +17,7 @@ The block loader renders Angular components from a **JSON description**. It reso
 ```
 projects/blocks-studio/src/lib/core/block-loader/
 ├── index.ts                    # Public exports
+├── block-definitions.registry.ts # BlockDefinitionsRegistry (global blockId → definition)
 ├── block-description.schema.ts # BlockDescription, BlockReference, safeParse, isBlockReference, resolveBlockReference, deepMergeBlockDefinition
 ├── block-registry.ts           # BlockRegistry, BlockInstanceHandle, BlockRegistryImpl
 ├── ref-expressions.ts          # parseRefPath, parseTwoWayRef, classifyTwoWayString
@@ -28,22 +29,22 @@ projects/blocks-studio/src/lib/core/block-loader/
 
 ## Overview
 
-- **BlockDirective** – Renders one block from a description or block reference; use `[block]` with `[description]="desc"`, and optionally `[blockRegistry]="registry"` and `[blockDefinitions]="definitions"` so nested blocks share the registry and references resolve.
-- **BlockLoaderService** – Validates the description (or resolves a block reference and deep-merges `blockDefinition`), resolves the component (via [ComponentRegistry](registry.md)), builds a child injector for self-scoped services, creates the component, builds **instance** (services/state by name), seeds **model** from `inputs.model` if present, resolves inputs (refs or literals), wires outputs (reference-based or directive-provided), and registers/unregisters by **id**.
+- **BlockDirective** – Renders one block from a description or block reference; use `[block]` with `[description]="desc"`, and optionally `[model]`, `[blockRegistry]="registry"`, and `[blockDefinitions]="definitions"` so nested blocks share the registry and references resolve.
+- **BlockLoaderService** – Validates the description (or resolves a block reference via `blockDefinitions` or global [BlockDefinitionsRegistry](registry.md#block-definitions-registry) and deep-merges `blockDefinition`), resolves the component (via [ComponentRegistry](registry.md)), builds a child injector for self-scoped services, creates the component, builds **instance** (services/state by name), seeds **model** from the directive’s `[model]` input (or the `model` argument when calling `load()`), resolves inputs (refs or literals), wires outputs (reference-based or directive-provided), and registers/unregisters by **id**.
 - **BlockRegistry** – One registry per tree; maps block **id** to a handle with **instance** (and optional **destroy**). Duplicate id in the same tree throws.
 
 ## Description shape
 
 You can pass a **full description** (see table below) or a **block reference** to reuse (and optionally override) a definition from `blockDefinitions`:
 
-- **Reference:** `{ id: string }` or `{ blockId: string, blockDefinition?: object }`. Lookup key is `id` or `blockId`.
-- **Override:** When `blockDefinition` is provided, it is **deep-merged** onto the registered definition. Only the properties you specify are changed; others (e.g. `inputs.rows`, `component`, `services`) stay from the base. Example: `{ blockId: 'userCard', blockDefinition: { inputs: { model: { name: 'Jane' } } } }` keeps the card layout and only overrides `inputs.model`.
+- **Reference:** `{ blockId: string, id?: string, blockDefinition?: object }`. Lookup uses **blockId** in `blockDefinitions` (if passed to the directive/loader) or in the global **BlockDefinitionsRegistry**; `id` optionally overrides the instance id on the resolved definition.
+- **Override:** When `blockDefinition` is provided, it is **deep-merged** onto the base. Only the properties you specify are changed; others (e.g. `inputs.rows`, `component`, `services`) stay from the base. Note: `inputs.model` in the description is not used by the loader; pass the actual model via the directive’s `[model]` or `load(..., model, ...)`.
 
 | Property   | Type     | Required | Description |
 |------------|----------|----------|-------------|
-| `component` | `string` | Yes (full) | Component key (resolved via [ComponentRegistry](registry.md)). Omit when using id-only. |
-| `id`       | `string` | No  | Unique id for this block; used for registry and cross-block refs. At most one per id per tree. For id-only, this is the key to look up in `blockDefinitions`. |
-| `services` | `string \| { id, scope: "self" } \| array` | No | Root-scoped (string) or self-scoped (`{ id, scope: "self" }`) service ids. |
+| `component` | `string` | Yes (full) | Component key (resolved via [ComponentRegistry](registry.md)). Omit when using a block reference. |
+| `id`       | `string` | No  | Unique id for this block; used for registry and cross-block refs. At most one per id per tree. With a block reference, can override the instance id. |
+| `services` | `string \| { id, scope?, alias? } \| array` | No | Service ids: **root-scoped** (string or `{ id, alias? }` with no scope) resolved from the host injector when using the directive, or **self-scoped** (`{ id, scope: "self", alias? }`) with a new instance per block. |
 | `inputs`   | `Record<string, unknown>` | No | Component inputs. See [Inputs](#inputs) for value types and special cases. |
 | `outputs`  | `Record<string, unknown>` | No | Output names → handler config. See [Outputs as reference](#outputs-as-reference). |
 
@@ -51,12 +52,7 @@ You can pass a **full description** (see table below) or a **block reference** t
 
 ## Inputs
 
-Input resolution runs in a fixed order. Each input key (except `model`) is handled as follows.
-
-### Reserved: `model`
-
-- **Not** set on the component.
-- After building the block instance (self-scoped services by name), the loader checks each instance service for a `setModel` method. For every service that has one, it calls `setModel(desc.inputs.model)`. Use this to seed initial state for any service that supports it as part of its lifecycle (e.g. `inputs: { model: { firstName: 'Jane', age: 28 } }`).
+Input resolution runs in a fixed order. Each input key is handled as follows.
 
 ### Literal values
 
@@ -89,7 +85,7 @@ Input resolution runs in a fixed order. Each input key (except `model`) is handl
 
 | Input value shape | What happens |
 |-------------------|---------------|
-| Key is `model` | Skipped for component; passed to every instance service that has a `setModel` method. |
+| Key is `model` | Ignored: the loader does not read `inputs.model` from the description. Model comes only from directive `[model]` / `load(..., model, ...)` and is passed to every instance service that has a `setModel` method. Not set on component. |
 | String with `{{ ... }}` | Interpolate once, set initial; effect re-interpolates and updates. |
 | String exactly `[( refPath )]` | Resolve initial from ref; two effects: ref→setInput, component signal→setRefValue. |
 | Other string | Left as-is, set on component. |
@@ -145,12 +141,12 @@ If the output value is not a reference config, the directive's **outputHandlers*
 
 Instead of passing a full description, you can pass a **block reference** so the loader looks up the definition in **blockDefinitions** and optionally **overrides** only some properties.
 
-- **Id-only:** `{ id: 'BlockId' }` or `{ blockId: 'BlockId' }` → use the registered definition as-is.
-- **With overrides:** `{ blockId: 'BlockId', blockDefinition: { inputs: { model: {...} } } }` → start from the registered definition and **deep-merge** `blockDefinition` on top. Only the keys you pass are changed; e.g. `inputs.model` is overridden but `inputs.rows` and everything else stay from the base. Unrelated properties are never removed.
+- **Id-only:** `{ blockId: 'BlockId' }` (optional `id` to set instance id) → use the registered definition as-is. Definition is looked up by `blockId` in `blockDefinitions` or the global BlockDefinitionsRegistry.
+- **With overrides:** `{ blockId: 'BlockId', blockDefinition: { inputs: { ... } } }` → start from the registered definition and **deep-merge** `blockDefinition` on top. Only the keys you pass are changed (e.g. other `inputs`); `inputs.model` is not used by the loader—pass model via `[model]` or `load(..., model, ...)`. Unrelated properties are never removed.
 
-- **Directive:** set `[blockDefinitions]="definitions"` (e.g. `{ userCard: userCardBlock }`).
-- **Loader:** pass `blockDefinitions` in `BlockLoadOptions` when calling `load()` directly.
-- If the reference has no matching key in `blockDefinitions`, the loader throws.
+- **Directive:** set `[blockDefinitions]="definitions"` (e.g. `{ userCard: userCardBlock }`) when you want to supply definitions per tree or route. If a reference’s `blockId` is not in `blockDefinitions`, resolution falls back to the global **BlockDefinitionsRegistry** (see [Registry](registry.md)).
+- **Loader:** pass `blockDefinitions` in `BlockLoadOptions` when calling `load()` directly; same fallback to global registry if the key is missing.
+- The loader throws only if the block is not found in either `blockDefinitions` or the global registry.
 
 ### Example: card template with override
 
@@ -176,7 +172,7 @@ const userCardBlock = {
 data: { block: { blockId: 'UserCard' }, blockDefinitions: { UserCard: userCardBlock } }
 ```
 
-**3. Reuse and override only `inputs.model` (same layout, different data):**
+**3. Reuse with different data (same layout; pass model via `[model]` or route data):**
 
 ```typescript
 data: {
@@ -214,22 +210,23 @@ For more examples (full description, route + BlockHost, deep merge behavior), se
 
 | Input | Type | Description |
 |-------|------|-------------|
-| `description` | `unknown \| null` | Full block description, or block reference `{ id }` / `{ blockId, blockDefinition? }` when using `blockDefinitions`. |
+| `description` | `BlockInput \| BlockReference \| null` | Full block description, or block reference `{ blockId, id?, blockDefinition? }`. When using a reference, definition is resolved from `blockDefinitions` or the global BlockDefinitionsRegistry. |
 | `outputHandlers` | `Record<string, (value: unknown) => void>` | Handlers for component outputs; keys match description `outputs`. |
 | `blockRegistry` | `BlockRegistry \| null` | Registry for block instances by id; pass from root so nested blocks share it. |
-| `blockDefinitions` | `Record<string, unknown> \| null` | Map id → full description; required when `description` is a block reference (id/blockId). |
+| `blockDefinitions` | `Record<string, unknown> \| null` | Map blockId → full description; used when `description` is a block reference. Missing keys fall back to global BlockDefinitionsRegistry. |
+| `model` | `Record<string, unknown> \| string \| undefined` | Optional model for the block (e.g. route data). Passed to the loader; services with `setModel` receive it. Can be a ref path string to bind to another block's model. |
 
-Usage: host element with `[block]` and `[description]="desc"`. Optionally `[blockRegistry]="registry"`, `[blockDefinitions]="definitions"`, and `[outputHandlers]="handlers"`.
+Usage: host element with `[block]` and `[description]="desc"`. Optionally `[model]="model()"`, `[blockRegistry]="registry"`, `[blockDefinitions]="definitions"`, and `[outputHandlers]="handlers"`.
 
 ## BlockLoaderService API
 
 | Method | Description |
 |--------|-------------|
-| `load(description, viewContainerRef, options?)` | Load a component from the description, build instance from self-scoped services, seed model, resolve inputs, wire outputs, register by id. Returns `Promise<BlockLoadResult>`. |
+| `load(description, viewContainerRef, model, options?)` | Load a component from the description. **model** is a `Signal<unknown \| undefined>` (e.g. from the directive's `[model]` input); it seeds `blockInstance['model']` and each service's `setModel`. Builds instance from services, resolves inputs, wires outputs, registers by id. Returns `Promise<BlockLoadResult>`. |
 
-**BlockLoadOptions:** `outputHandlers?`, `registry?`, `blockDefinitions?` (id → full description; used when description is a block reference).
+**BlockLoadOptions:** `outputHandlers?`, `registry?`, `blockDefinitions?` (blockId → full description; used when description is a block reference; missing keys use global BlockDefinitionsRegistry).
 
-**BlockLoadResult:** `componentRef`, `destroy()` (unregister, unsubscribe outputs, remove view, destroy component), `updateInputs(description)` (re-parse and set inputs from a new description).
+**BlockLoadResult:** `componentRef`, `destroy()` (unregister, unsubscribe outputs, remove view, destroy component), `updateInputs(description)` (re-parse and re-apply model, inputs, and effects from a new description).
 
 ## Block registry
 
@@ -281,9 +278,9 @@ const block = {
 // <div block [description]="block" [blockRegistry]="getRegistry()"></div>
 ```
 
-### Example 2: Reuse by id (no overrides)
+### Example 2: Reuse by blockId (no overrides)
 
-Register the block in `blockDefinitions` and reference it by `id` or `blockId`. Same block, same data every time.
+Register the block in `blockDefinitions` (or the global BlockDefinitionsRegistry) and reference it by `blockId`. Same block, same data every time.
 
 ```typescript
 // Define once, export for registration
@@ -292,28 +289,28 @@ const personFormBlock = {
   id: 'PersonForm',
   services: [{ id: 'FormState', scope: 'self' as const }],
   inputs: {
-    model: { firstName: 'Jane', lastName: 'Doe', age: 28 },
     rows: [/* ... */],
   },
 };
 
-// Route: reuse by id
+// Route: reuse by blockId
 const route = {
   path: 'person',
   component: 'BlockHost',
   data: {
-    block: { id: 'PersonForm' },
+    block: { blockId: 'PersonForm' },
     blockDefinitions: { PersonForm: personFormBlock },
+    model: { firstName: 'Jane', lastName: 'Doe', age: 28 },
   },
 };
 
-// Host template must pass both
-// [description]="blockDescription()" [blockDefinitions]="blockDefinitions()"
+// Host template must pass description, blockDefinitions, and optionally model
+// [description]="blockDescription()" [blockDefinitions]="blockDefinitions()" [model]="model()"
 ```
 
 ### Example 3: Reuse with overrides (deep merge)
 
-Use the same layout/structure but override only specific properties (e.g. `inputs.model`). Other keys (rows, services, component) stay from the base.
+Use the same layout/structure but pass different data via the directive’s `[model]` (or override other `inputs` in `blockDefinition`). The loader does not use `inputs.model` from the description.
 
 ```typescript
 // Base card: row/column layout + FormState
@@ -339,30 +336,20 @@ const userCardBlock = {
   },
 };
 
-// Usage A: same card, different initial model (only inputs.model is overridden)
-const blockWithOverride = {
-  blockId: 'UserCard',
-  blockDefinition: {
-    inputs: {
-      model: { name: 'Jane Doe', email: 'jane@example.com' },
-    },
-  },
-};
+// Usage A: same card, different initial model (pass via [model], not inputs.model)
+const blockWithOverride = { blockId: 'UserCard' };
+// In host: [model]="modelSignal" with modelSignal = signal({ name: 'Jane Doe', email: 'jane@example.com' })
 
-// Usage B: override multiple top-level keys (e.g. id for this instance, and model)
+// Usage B: override instance id; pass model via [model]
 const blockWithIdAndModel = {
   blockId: 'UserCard',
-  blockDefinition: {
-    id: 'UserCardInstance1',
-    inputs: {
-      model: { name: 'John', email: 'john@example.com' },
-    },
-  },
+  blockDefinition: { id: 'UserCardInstance1' },
 };
+// Host: [model]="signal({ name: 'John', email: 'john@example.com' })"
 
-// Register and pass to directive
+// Register and pass to directive (include [model] for initial data)
 const blockDefinitions = { UserCard: userCardBlock };
-// <div block [description]="blockWithOverride" [blockDefinitions]="blockDefinitions" [blockRegistry]="registry()"></div>
+// <div block [description]="blockWithOverride" [model]="modelSignal" [blockDefinitions]="blockDefinitions" [blockRegistry]="registry()"></div>
 ```
 
 ### Example 4: Route + BlockHost (end-to-end)
@@ -380,8 +367,9 @@ export const routes = [
     component: 'BlockHost',
     title: 'Person info',
     data: {
-      block: { id: 'PersonForm' },
+      block: { blockId: 'PersonForm', id: 'PersonForm' },
       blockDefinitions: { PersonForm: personFormBlock },
+      model: { firstName: 'Jane', lastName: 'Doe', age: 28 },
     },
   },
 ];
@@ -399,6 +387,7 @@ export class BlockHostComponent {
   readonly blockDefinitions = computed(
     () => (this.routeData()['blockDefinitions'] as Record<string, unknown> | undefined) ?? null
   );
+  readonly model = computed(() => this.routeData()['model'] ?? undefined);
 
   getRegistry(): BlockRegistry {
     return this.blockRegistry.registry;
@@ -413,6 +402,7 @@ export class BlockHostComponent {
   <div
     block
     [description]="desc"
+    [model]="model()"
     [blockRegistry]="getRegistry()"
     [blockDefinitions]="blockDefinitions()">
   </div>
@@ -423,29 +413,28 @@ export class BlockHostComponent {
 
 ### Example 5: Programmatic load (BlockLoaderService)
 
-When loading blocks from code (e.g. dynamic slot or modal):
+When loading blocks from code (e.g. dynamic slot or modal), pass a **model** signal as the third argument (e.g. `signal(undefined)` or a signal of your initial data):
 
 ```typescript
-// Id-only
+// By blockId (definition from options or global registry)
 await this.loader.load(
-  { id: 'PersonForm' },
+  { blockId: 'PersonForm' },
   viewContainerRef,
+  this.modelSignal, // Signal<unknown | undefined>
   { registry: this.registry, blockDefinitions: { PersonForm: personFormBlock } }
 );
 
 // With overrides
 await this.loader.load(
-  {
-    blockId: 'UserCard',
-    blockDefinition: { inputs: { model: { name: 'Jane', email: 'jane@example.com' } } },
-  },
+  { blockId: 'UserCard' },
   viewContainerRef,
+  signal({ name: 'Jane', email: 'jane@example.com' }),  // model via 3rd arg, not blockDefinition.inputs.model
   { registry: this.registry, blockDefinitions: { UserCard: userCardBlock } }
 );
 ```
 
 ### Deep merge behavior (blockDefinition)
 
-- **Objects** are merged by key. Only keys present in `blockDefinition` override the base; others are unchanged. Example: `blockDefinition: { inputs: { model: {...} } }` replaces only `inputs.model` and keeps `inputs.rows`, `inputs.columns`, etc.
+- **Objects** are merged by key. Only keys present in `blockDefinition` override the base; others are unchanged. Example: `blockDefinition: { inputs: { someKey: {...} } }` replaces only that input and keeps `inputs.rows`, etc. (Note: `inputs.model` is not read by the loader.)
 - **Arrays** in `blockDefinition` replace the base array entirely (no element-wise merge).
 - **Primitives** in `blockDefinition` replace the base value.
