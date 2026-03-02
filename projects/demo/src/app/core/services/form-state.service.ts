@@ -19,7 +19,7 @@ const defaultPerson: PersonModel = {
  * Exposed as instance.FormState for ref resolution and two-way binding.
  * Register with ServiceRegistry as 'FormState' and use scope: 'self' per form.
  */
-@Injectable()
+@Injectable({ providedIn: 'root' })
 export class FormStateService {
   readonly firstName = signal<string>(defaultPerson.firstName);
   readonly lastName = signal<string>(defaultPerson.lastName);

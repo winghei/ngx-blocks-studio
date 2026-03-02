@@ -23,7 +23,8 @@ export interface RowColumn {
 })
 export class RowLayoutBlockComponent {
   readonly rows = input<RowColumn[]>([]);
-  readonly model = input<any | undefined>(undefined);
+  readonly model = input<Record<string, unknown> | string | undefined>(undefined);
+  readonly registry = input<BlockRegistry | null>(null);
   readonly blockRegistry = inject(BlockRegistryService);
 
   getRegistry(): BlockRegistry | null {

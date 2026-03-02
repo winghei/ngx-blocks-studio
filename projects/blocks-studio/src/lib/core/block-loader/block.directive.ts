@@ -7,6 +7,7 @@ import {
   normalizeServices,
   isBlockReference,
   resolveBlockReference,
+  type BlockReference,
 } from './block-description.schema';
 
 /** Compact key for services to avoid JSON.stringify of large config in effect. */
@@ -32,7 +33,7 @@ export class BlockDirective {
   private readonly destroyRef = inject(DestroyRef);
 
   /** Full description, or { id } / { blockId, blockDefinition? } to reuse/override from blockDefinitions. */
-  readonly description = input<BlockInput | null>(null);
+  readonly description = input<BlockInput | BlockReference | null>(null);
   /** Handlers for component outputs; keys match descriptor.outputs. */
   readonly outputHandlers = input<Record<string, (value: unknown) => void>>({});
   /** Registry for block instances by id; pass from root so nested blocks share it. */
@@ -40,7 +41,7 @@ export class BlockDirective {
   /** Map id → full description; used when description is a block reference (id/blockId). */
   readonly blockDefinitions = input<Record<string, unknown> | null>(null);
   /** Model for the block. */
-  readonly model = input<unknown | undefined>(undefined);
+  readonly model = input<Record<string, unknown> | string | undefined>(undefined);
 
   private loadResult: BlockLoadResult | null = null;
   private loadedComponent: string | null = null;
@@ -90,14 +91,21 @@ export class BlockDirective {
         return;
       }
 
-      this.clear();
+      // Only clear when the logical description changed (component or services). Avoids
+      // clear+reload when the parent passes a new reference with the same content (e.g. BlockFor).
+      const mustReload =
+        this.loadResult == null ||
+        this.loadedComponent !== data.component ||
+        this.loadedServicesKey !== servicesKey;
+      if (mustReload) {
+        this.clear();
+      }
       const registry = this.blockRegistry() ?? undefined;
       const generation = ++this.loadGeneration;
       this.loader
         .load(resolved, this.viewContainerRef, this.model, {
           outputHandlers: Object.keys(outputHandlers).length > 0 ? outputHandlers : undefined,
           registry,
-
           blockDefinitions: inputDefs ?? undefined,
         })
         .then((result) => {

@@ -19,7 +19,7 @@ import { BlockRegistryService } from '../../../core/services/block-registry.serv
 export class SectionBlockComponent {
   readonly title = input<string>('');
   readonly children = input<any[]>([]);
-  readonly model = input<unknown | undefined>(undefined);
+  readonly model = input<Record<string, unknown> | string | undefined>(undefined);
   private readonly blockRegistry = inject(BlockRegistryService);
 
   getRegistry(): BlockRegistry | null {

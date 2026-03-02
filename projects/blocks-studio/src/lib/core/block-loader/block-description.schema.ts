@@ -2,13 +2,14 @@ import { z } from 'zod';
 import { BlockDefinitionsRegistry } from './block-definitions.registry';
 
 /**
- * Service entry: root-scoped (string id) or self-scoped ({ id, scope: "self" }).
+ * Service entry: root-scoped (string id or { id, alias? } with no scope) or self-scoped ({ id, scope: "self", alias? }).
+ * When scope is omitted or undefined, the service is resolved from the root injector.
  */
 const ServiceEntrySchema = z.union([
   z.string().min(1),
   z.object({
     id: z.string().min(1),
-    scope: z.literal('self'),
+    scope: z.literal('self').optional(),
     alias: z.string().min(1).optional(),
   }),
 ]);
@@ -61,6 +62,7 @@ export const BlockDescriptionSchema = z.object({
     .default([]),
   inputs: z.record(z.string(), z.unknown()).optional(),
   outputs: z.record(z.string(), OutputValueSchema).optional(),
+
 });
 
 export type BlockDescription = z.infer<typeof BlockDescriptionSchema>;
@@ -101,7 +103,8 @@ export interface BlockReference {
   id?: string;
   /** Registered block id used to resolve the block description. */
   blockId?: string;
-  blockDefinition?: Record<string, unknown>;
+  /** Override merged onto the resolved block; only specified keys (e.g. inputs) are applied. */
+  blockDefinition?: Partial<BlockInput>;
 }
 
 export function isBlockReference(value: unknown): value is BlockReference {

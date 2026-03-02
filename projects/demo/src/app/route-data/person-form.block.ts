@@ -6,17 +6,17 @@
 const personFormBlock = {
   component: 'RowLayout',
   id: 'PersonForm',
-  services: [{ id: 'FormState', scope: 'self' as const }],
+  services: [{ id: 'FormState' }],
+
   inputs: {
-  
     rows: [
       { columns: [{ blockId: 'AppNav' }] },
       {
         columns: [
           {
             component: 'HtmlBlock',
+            model: 'PersonForm.instance.FormState.model',
             inputs: {
-              model: '{{PersonForm.instance.FormState.model}}',
               html: 'hello  {{firstName}} {{PersonForm.instance.FormState.lastName}} {{age}}',
             },
           },
