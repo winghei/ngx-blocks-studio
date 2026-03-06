@@ -97,7 +97,10 @@ export class BlockLoaderService {
       );
     const selfServiceTypes = await this.getServiceTypes(selfServices);
     const rootServiceTypes = await this.getServiceTypes(rootEntries);
-    const childInjector = this.buildChildInjectorFromTypes(selfServiceTypes);
+    // Use the view container's injector as parent so the created component participates in the
+    // same injector hierarchy (e.g. RouteBlockComponent), giving RouterOutlet access to ActivatedRoute.
+    const parentInjector = viewContainerRef.injector;
+    const childInjector = this.buildChildInjectorFromTypes(selfServiceTypes, parentInjector);
     const componentRef = viewContainerRef.createComponent(componentType as Type<unknown>, {
       injector: childInjector,
     });
@@ -161,13 +164,16 @@ export class BlockLoaderService {
     return Promise.all(entries.map((e) => this.serviceRegistry.getType(e.id)));
   }
 
-  private buildChildInjectorFromTypes(serviceTypes: (Type<unknown> | undefined)[]): Injector {
+  private buildChildInjectorFromTypes(
+    serviceTypes: (Type<unknown> | undefined)[],
+    parentInjector: Injector = this.injector,
+  ): Injector {
     const providers = serviceTypes
       .filter((t): t is Type<unknown> => t != null)
       .map((t) => ({ provide: t, useClass: t }));
     return providers.length === 0
-      ? this.injector
-      : Injector.create({ providers, parent: this.injector });
+      ? parentInjector
+      : Injector.create({ providers, parent: parentInjector });
   }
 
   /** Set inputs and wire template/two-way effects. Single pass over inputs for large configs. */
