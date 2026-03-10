@@ -18,7 +18,7 @@ const parseRefPathCache = new Map<string, ParsedRefPath>();
  * Parse ref path in the form "BlockID:model.info.title" or "model.info.title".
  * - With colon: first segment before ":" is block id, rest is instance path (service/model + property path).
  * - Without colon: current block; entire string is instance path (service/model + property path).
- * - Single segment (e.g. "age"): model path fallback when ref resolution returns null.
+ * - Single segment (e.g. "FormState"): resolved as service/model name on current instance; if missing, resolution returns null (e.g. "age" for model path fallback).
  */
 function parseRefPathUncached(refPath: string): ParsedRefPath {
   const trimmed = refPath.trim();
@@ -36,12 +36,15 @@ function parseRefPathUncached(refPath: string): ParsedRefPath {
     }
   }
 
-  if (trimmed.includes('.')) {
-    const pathParts = trimmed.split('.').filter(Boolean);
-    return { serviceOrModel: pathParts[0], pathParts: pathParts.slice(1) };
-  } else {
-    return { serviceOrModel: '', pathParts: [trimmed] };
+  const pathParts = trimmed.split('.').filter(Boolean);
+  if (pathParts.length === 0) {
+    return { serviceOrModel: '', pathParts: [] };
   }
+  if (pathParts.length === 1) {
+    // Single segment: treat as service/model name (e.g. "FormState" -> instance.FormState)
+    return { serviceOrModel: pathParts[0], pathParts: [] };
+  }
+  return { serviceOrModel: pathParts[0], pathParts: pathParts.slice(1) };
 }
 
 export function parseRefPath(refPath: string): ParsedRefPath {
