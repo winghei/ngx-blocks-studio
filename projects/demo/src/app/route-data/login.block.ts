@@ -23,7 +23,7 @@ const loginBlock = {
             component: 'StringInput',
             inputs: {
               label: 'Username',
-              value: '[(LoginPage.instance.AuthState.username)]',
+              value: '[(LoginPage:AuthState.username)]',
               placeholder: 'Username',
             },
           },
@@ -35,7 +35,7 @@ const loginBlock = {
             component: 'StringInput',
             inputs: {
               label: 'Password',
-              value: '[(LoginPage.instance.AuthState.password)]',
+              value: '[(LoginPage:AuthState.password)]',
               placeholder: 'Password',
             },
           },

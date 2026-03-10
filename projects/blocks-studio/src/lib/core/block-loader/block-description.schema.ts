@@ -51,7 +51,7 @@ const OutputValueSchema = z.union([z.record(z.string(), z.unknown()), OutputRefe
 
 /**
  * Block description: JSON-serializable descriptor for dynamic block loading.
- * Refs in inputs use instance namespace: instance.FormState.firstName or UserForm.instance.FormState.firstName.
+ * Refs in inputs: "model.info.title" (current block) or "BlockID:model.info.title" (block id + service/model + path).
  */
 export const BlockDescriptionSchema = z.object({
   component: z.string().min(1),

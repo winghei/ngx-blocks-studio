@@ -23,7 +23,7 @@ const dashboardBlock = {
           {
             component: 'HtmlBlock',
             inputs: {
-              html: 'Note: {{DashboardPage.instance.DashboardState.note}}',
+              html: 'Note: {{DashboardPage:DashboardState.note}}',
             },
           },
         ],
@@ -34,7 +34,7 @@ const dashboardBlock = {
             component: 'StringInput',
             inputs: {
               label: 'Note',
-              value: '[(DashboardPage.instance.DashboardState.note)]',
+              value: '[(DashboardPage:DashboardState.note)]',
               placeholder: 'Enter a note',
             },
           },

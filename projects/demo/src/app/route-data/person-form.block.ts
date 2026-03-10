@@ -1,6 +1,6 @@
 /**
  * Block description for the person form, passed as route data to BlockHost.
- * Refs use PersonForm.instance.FormState.* so child blocks (StringInput, NumberInput)
+ * Refs use PersonForm:FormState.* so child blocks (StringInput, NumberInput)
  * resolve against the root block's FormState, which receives the default model via setModel().
  */
 const personFormBlock = {
@@ -15,9 +15,9 @@ const personFormBlock = {
         columns: [
           {
             component: 'HtmlBlock',
-            model: 'PersonForm.instance.FormState.model',
+            model: { firstName: 'John', items: { a: 1, b: 2, sub: { a: 134, b: 2 } }, lastName: 'Doe', age: 30 },
             inputs: {
-              html: 'hello  {{firstName}} {{PersonForm.instance.FormState.lastName}} {{age}}',
+              html: 'hello  {{items.a}} {{items.sub.a}} {{PersonForm:FormState.nestedSignal.sub.a}} {{PersonForm:FormState.lastName}} {{age}}',
             },
           },
         ],
@@ -28,7 +28,7 @@ const personFormBlock = {
             component: 'StringInput',
             inputs: {
               label: 'First name',
-              value: '[(PersonForm.instance.FormState.firstName)]',
+              value: '[(PersonForm:FormState.firstName)]',
               placeholder: 'First name',
             },
           },
@@ -36,7 +36,7 @@ const personFormBlock = {
             component: 'StringInput',
             inputs: {
               label: 'Last name',
-              value: '[(PersonForm.instance.FormState.lastName)]',
+              value: '[(PersonForm:FormState.lastName)]',
               placeholder: 'Last name',
             },
           },
@@ -48,7 +48,7 @@ const personFormBlock = {
             component: 'StringInput',
             inputs: {
               label: 'Email',
-              value: '[(PersonForm.instance.FormState.email)]',
+              value: '[(PersonForm:FormState.email)]',
               placeholder: 'email@example.com',
             },
           },
@@ -56,14 +56,14 @@ const personFormBlock = {
             component: 'NumberInput',
             inputs: {
               label: 'Age',
-              value: '{{PersonForm.instance.FormState.age}}',
+              value: '{{PersonForm:FormState.age}}',
               min: 0,
               max: 120,
             },
             outputs: {
               valueChange: {
                 type: 'reference' as const,
-                reference: 'PersonForm.instance.FormState.age',
+                reference: 'PersonForm:FormState.age',
                 method: 'set',
               },
             },
@@ -88,6 +88,7 @@ export const routes = [
       model: {
         firstName: 'Jane',
         lastName: 'Doe',
+        items: { a: 'asdf', sub: { a: 134, b: 2 } },
         email: 'jane.doe@example.com',
         age: 28,
       },

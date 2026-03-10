@@ -1,60 +1,63 @@
 import { computed, isSignal, type Signal } from '@angular/core';
-import type { BlockRegistry } from './block-registry';
+import type { BlockRegistry, CurrentInstance } from './block-registry';
 import { parseRefPath } from './ref-expressions';
+
 
 export interface ResolverContext {
   registry: BlockRegistry;
   /** Current block's full id (nearest block with id). */
   currentBlockId?: string;
   /** Current block's instance (services/state by name). */
-  currentInstance?: Record<string, unknown>;
+  currentInstance?: CurrentInstance;
 }
 
 /**
  * Resolve a ref path to the target object and path.
- * Path format: "instance.FormState.firstName" (context) or "UserForm.instance.FormState.firstName" (registry).
+ * Path format: "model.info.title" (current block) or "BlockID:model.info.title" (named block).
+ * First segment after the optional BlockID: is the service/model name; the rest is the property path.
+ * Single-segment refs (e.g. "age") return null so interpolation falls back to model path.
  */
 export function resolveRefPath(
   refPath: string,
-  ctx: ResolverContext
+  ctx: ResolverContext,
 ): { target: unknown; path: string[] } | null {
-  const { blockId, pathParts } = parseRefPath(refPath);
-  if (pathParts[0] !== 'instance' || pathParts.length < 2) {
+  const parsed = parseRefPath(refPath);
+  const { blockId, serviceOrModel, pathParts } = parsed;
+
+  if (!serviceOrModel) {
     return null;
   }
-  const rest = pathParts.slice(2);
-  const serviceOrProp = pathParts[1];
 
-  let instance: Record<string, unknown> | undefined;
+  let instance: CurrentInstance | undefined;
   if (blockId != null) {
-    // Prefer current block's instance when ref points to this block (e.g. root resolving nested refs to itself)
-    if (blockId === ctx.currentBlockId && ctx.currentInstance != null) {
-      instance = ctx.currentInstance;
-    } else {
-      const handle = ctx.registry.get(blockId);
-      instance = handle?.instance as Record<string, unknown> | undefined;
-    }
-  } else if (ctx.currentInstance != null) {
-    instance = ctx.currentInstance;
+    const handle = ctx.registry.get(blockId);
+    if (!handle) return null;
+    instance = handle.instance;
+  } else {
+    instance = ctx.currentInstance ?? undefined;
   }
   if (instance == null) return null;
 
-  let service: unknown = instance[serviceOrProp];
-  if (rest.length === 0) {
+
+  const service = instance[serviceOrModel];
+  if (!service) return null;
+  if (pathParts.length === 0) {
     return { target: service, path: [] };
   }
+
   let current: unknown = service;
-  for (let i = 0; i < rest.length - 1; i++) {
-    // Unwrap signals at each segment after `.instance` so instance.model.item.a works
+  for (let i = 0; i < pathParts.length - 1; i++) {
+    // Unwrap signals at each segment so model.item.a works even when
+    // model or item are signals.
     if (current != null && isSignal(current)) {
       current = (current as Signal<unknown>)();
     }
     if (current == null || typeof current !== 'object') return null;
-    current = (current as Record<string, unknown>)[rest[i]];
+    current = (current as Record<string, unknown>)[pathParts[i]];
   }
   // Do not unwrap the final segment here; leave it to getRefValue / setRefValue so they
   // can consistently handle signals and functions at the leaf.
-  return { target: current, path: rest.slice(-1) };
+  return { target: current, path: pathParts.slice(-1) };
 }
 
 /**
@@ -87,8 +90,8 @@ export function refPathResolvesToSignal(refPath: string, ctx: ResolverContext): 
 
 /**
  * Get value at ref path (read-only). Returns undefined if not found.
- * When target is a Signal (e.g. instance.model) and path has segments, unwraps the Signal first
- * so refs like PersonForm.instance.model.firstName resolve correctly.
+ * When target is a Signal (e.g. model) and path has segments, unwraps the Signal first
+ * so refs like PersonForm:model.firstName resolve correctly.
  */
 export function getRefValue(refPath: string, ctx: ResolverContext): unknown {
   const resolved = resolveRefPath(refPath, ctx);
@@ -96,7 +99,7 @@ export function getRefValue(refPath: string, ctx: ResolverContext): unknown {
     return resolved?.target;
   }
   let obj: unknown = resolved.target;
-  // Unwrap Signal so we can read properties (e.g. PersonForm.instance.model.firstName)
+  // Unwrap Signal so we can read properties (e.g. PersonForm:model.firstName)
   if (obj != null && isSignal(obj)) {
     obj = (obj as Signal<unknown>)();
   }
@@ -136,9 +139,7 @@ export function setRefValue(refPath: string, ctx: ResolverContext, value: unknow
   // use isSignal so we only treat real signals as writable
   type WritableSignalLike = { set: (v: unknown) => void };
   const writable =
-    val != null &&
-    isSignal(val) &&
-    typeof (val as unknown as WritableSignalLike).set === 'function'
+    val != null && isSignal(val) && typeof (val as unknown as WritableSignalLike).set === 'function'
       ? (val as unknown as WritableSignalLike)
       : null;
   if (writable) {
@@ -154,7 +155,7 @@ export function setRefValue(refPath: string, ctx: ResolverContext, value: unknow
 export function buildComputedForTemplate(
   template: string,
   refPaths: string[],
-  ctx: ResolverContext
+  ctx: ResolverContext,
 ): Signal<string> {
   const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return computed(() => {

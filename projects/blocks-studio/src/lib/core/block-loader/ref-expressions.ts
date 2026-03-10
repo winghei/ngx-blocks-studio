@@ -7,28 +7,41 @@ const TWOWAY_REF_RE = /^\[\(([^)]+)\)\]$/;
 
 export interface ParsedRefPath {
   blockId?: string;
-  instancePath: string;
+  serviceOrModel: string;
   pathParts: string[];
 }
 
 const PARSE_REF_PATH_CACHE_MAX = 64;
 const parseRefPathCache = new Map<string, ParsedRefPath>();
 
-function toPathParts(instancePath: string): string[] {
-  return instancePath.split('.').filter(Boolean);
-}
-
+/**
+ * Parse ref path in the form "BlockID:model.info.title" or "model.info.title".
+ * - With colon: first segment before ":" is block id, rest is instance path (service/model + property path).
+ * - Without colon: current block; entire string is instance path (service/model + property path).
+ * - Single segment (e.g. "age"): model path fallback when ref resolution returns null.
+ */
 function parseRefPathUncached(refPath: string): ParsedRefPath {
   const trimmed = refPath.trim();
-  const parts = trimmed.split('.');
-  if (parts.length >= 2 && parts[0] === 'instance') {
-    return { instancePath: trimmed, pathParts: toPathParts(trimmed) };
+  const colonIndex = trimmed.indexOf(':');
+
+  if (colonIndex !== -1) {
+    const prefix = trimmed.slice(0, colonIndex).trim();
+    const rest = trimmed.slice(colonIndex + 1).trim();
+    // BlockID must not contain a dot (so "BlockID:model.info.title" is valid; "a:b:c" → prefix "a", rest "b:c")
+    if (prefix.length > 0 && !prefix.includes('.')) {
+      const pathParts = rest.split('.').filter(Boolean);
+      return { blockId: prefix, serviceOrModel: pathParts[0], pathParts: pathParts.slice(1) };
+    } else {
+      throw new Error(`Invalid block id: ${prefix}`);
+    }
   }
-  if (parts.length >= 3 && parts[1] === 'instance') {
-    const instancePath = parts.slice(1).join('.');
-    return { blockId: parts[0], instancePath, pathParts: toPathParts(instancePath) };
+
+  if (trimmed.includes('.')) {
+    const pathParts = trimmed.split('.').filter(Boolean);
+    return { serviceOrModel: pathParts[0], pathParts: pathParts.slice(1) };
+  } else {
+    return { serviceOrModel: '', pathParts: [trimmed] };
   }
-  return { instancePath: trimmed, pathParts: toPathParts(trimmed) };
 }
 
 export function parseRefPath(refPath: string): ParsedRefPath {

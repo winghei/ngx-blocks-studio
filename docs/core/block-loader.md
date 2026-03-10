@@ -1,6 +1,6 @@
 # Block loader
 
-The block loader renders Angular components from a **JSON description**. It resolves **instance refs** (e.g. `instance.FormState.firstName` or `UserForm.instance.FormState.firstName`), wires **inputs** and **outputs**, and optionally registers block instances by **id** in a **BlockRegistry** so refs can target other blocks in the tree. You can pass a **full description**, or a **block reference** (`id` / `blockId`) to reuse a registered block and optionally **override** only some properties via `blockDefinition` (deep merge).
+The block loader renders Angular components from a **JSON description**. It resolves **instance refs** (e.g. `FormState.firstName` for current block or `PersonForm:FormState.firstName` for a named block), wires **inputs** and **outputs**, and optionally registers block instances by **id** in a **BlockRegistry** so refs can target other blocks in the tree. You can pass a **full description**, or a **block reference** (`id` / `blockId`) to reuse a registered block and optionally **override** only some properties via `blockDefinition` (deep merge).
 
 **Ways to pass a block:**
 
@@ -61,13 +61,13 @@ Input resolution runs in a fixed order. Each input key is handled as follows.
 
 ### Read-only refs: `{{ refPath }}`
 
-- **Format:** A string that contains at least one `{{ refPath }}` placeholder (e.g. `"Hello {{PersonForm.instance.FormState.firstName}}"` or `"{{instance.FormState.firstName}}"`). Ref path is trimmed; multiple placeholders are allowed.
+- **Format:** A string that contains at least one `{{ refPath }}` placeholder. Ref path format: `model.info.title` (current block) or `BlockID:model.info.title` (e.g. `"{{FormState.firstName}}"`, `"{{PersonForm:FormState.firstName}}"`). Ref path is trimmed; multiple placeholders are allowed.
 - **Behavior:** The loader replaces every `{{ refPath }}` with the current value from that path (signals are read via their getter). It sets the initial interpolated string on the component, then runs an **effect** that re-interpolates when any of the refs change and updates the input.
-- **Context:** Refs without a block id use the current block's instance; for cross-block use `BlockId.instance.path` (e.g. `PersonForm.instance.FormState.firstName`).
+- **Context:** Current block: `serviceOrModel.path`. Another block: `BlockID:serviceOrModel.path` (e.g. `PersonForm:FormState.firstName`).
 
 ### Two-way refs: `[( refPath )]`
 
-- **Format:** The **entire** input value must be exactly a two-way ref string: `"[(refPath)]"` (e.g. `"[(PersonForm.instance.FormState.firstName)]"`). No extra text.
+- **Format:** The **entire** input value must be exactly a two-way ref string: `"[(refPath)]"` (e.g. `"[(PersonForm:FormState.firstName)]"`). No extra text.
 - **No mixing:** Mixing `[( )]` with literals or `{{ }}` in the same string is invalid. The loader throws a clear error if it encounters such a value (e.g. `"prefix [(ref)]"` or `"[(ref)] and {{other}}"`). Use exactly `"[(refPath)]"` for two-way or `"{{ refPath }}"` / templates for read-only.
 - **Requirement:** The component must expose that input as a **signal** (or callable that returns the current value). The loader will read it and call `setRefValue` on the ref when it changes.
 - **Behavior:**
@@ -79,7 +79,7 @@ Input resolution runs in a fixed order. Each input key is handled as follows.
 ### Nested structures (e.g. `rows` / `columns`)
 
 - Arrays and objects are recursively resolved. Exception: inside an object that looks like a **block descriptor** (has `component` and `inputs`), the **inputs** subtree is resolved with two-way refs **preserved** (see above).
-- So a root block can have `inputs.rows = [ { columns: [ { component: 'StringInput', inputs: { value: '[(PersonForm.instance.FormState.firstName)]' } } ] } ]`. The child's `value` stays as the ref string until the StringInput block is loaded; then that block gets two-way binding for `value`.
+- So a root block can have `inputs.rows = [ { columns: [ { component: 'StringInput', inputs: { value: '[(PersonForm:FormState.firstName)]' } } ] } ]`. The child's `value` stays as the ref string until the StringInput block is loaded; then that block gets two-way binding for `value`.
 
 ### Summary: input resolution order per key
 
@@ -91,7 +91,7 @@ Input resolution runs in a fixed order. Each input key is handled as follows.
 | Other string | Left as-is, set on component. |
 | Array / object | Recursively resolved; two-way refs preserved inside nested block `inputs`. |
 
-Refs are resolved against the **nearest block with an id** (context). For cross-block refs use **BlockId.instance.path** (e.g. `PersonForm.instance.FormState.firstName`).
+Refs are resolved against the **current block** when no prefix is used (`model.path`). For another block use **BlockID:model.path** (e.g. `PersonForm:FormState.firstName`).
 
 ---
 
@@ -104,7 +104,7 @@ Refs are resolved against the **nearest block with an id** (context). For cross-
 2. **Wiring** – The loader’s `wireOutputs` builds a handler per output via `createOutputHandler(outputValue, outputKey, registry, outputHandlers)` and subscribes to the component’s emitter (e.g. `inst['valueChange']`). When the component emits, the handler is called with the event value.
 
 3. **Reference handler** – For an output reference, the handler:
-   - Resolves **reference** (e.g. `PersonForm.instance.FormState.age`) through the **BlockRegistry** to the target object (e.g. the `age` signal).
+   - Resolves **reference** (e.g. `PersonForm:FormState.age`) through the **BlockRegistry** to the target object (e.g. the `age` signal).
    - Gets the **method** on that target (e.g. `set`).
    - Calls **method** with **params** if provided, otherwise with the emitted value as the first argument (e.g. `age.set(emittedValue)`).
    - If the method returns a Promise, **then** / **onSuccess** / **onError** are invoked by resolving their `reference` + `method` (and optional `params`) the same way and calling them.
@@ -115,7 +115,7 @@ Refs are resolved against the **nearest block with an id** (context). For cross-
 
 When an output value is `{ type: "reference", reference, method, params?, then?, onSuccess?, onError? }`:
 
-- **reference** – Ref path to the target. Can be the **instance** (e.g. `UserForm.instance.FormState`) or a **deep path** to a property (e.g. `UserForm.instance.FormState.age`). For a deep path, the **leaf** is the call target (e.g. the `age` signal).
+- **reference** – Ref path (e.g. `UserForm:FormState` or `UserForm:FormState.age`). For a deep path, the **leaf** is the call target (e.g. the `age` signal).
 - **method** – Method name to call on that target (e.g. `setAge` on FormState, or `set` on a signal).
 - **params** – Optional array or record; if omitted, the **emitted event value** is passed as the first argument (e.g. `signal.set(emittedValue)`).
 - **then** – Optional array of `{ reference, method, params? }` to call after the method resolves (if it returns a Promise).
@@ -127,7 +127,7 @@ When an output value is `{ type: "reference", reference, method, params?, then?,
 "outputs": {
   "valueChange": {
     "type": "reference",
-    "reference": "PersonForm.instance.FormState.age",
+    "reference": "PersonForm:FormState.age",
     "method": "set"
   }
 }
@@ -141,7 +141,7 @@ If the output value is not a reference config, the directive's **outputHandlers*
 
 Instead of passing a full description, you can pass a **block reference** so the loader looks up the definition in **blockDefinitions** and optionally **overrides** only some properties.
 
-- **Id-only:** `{ blockId: 'BlockId' }` (optional `id` to set instance id) → use the registered definition as-is. Definition is looked up by `blockId` in `blockDefinitions` or the global BlockDefinitionsRegistry.
+- **Id-only:** `{ blockId: 'BlockId' }` (optional `id` to override the instance id) → use the registered definition as-is. When `id` is omitted, the base definition’s `id` is kept. Definition is looked up by `blockId` in `blockDefinitions` or the global BlockDefinitionsRegistry.
 - **With overrides:** `{ blockId: 'BlockId', blockDefinition: { inputs: { ... } } }` → start from the registered definition and **deep-merge** `blockDefinition` on top. Only the keys you pass are changed (e.g. other `inputs`); `inputs.model` is not used by the loader—pass model via `[model]` or `load(..., model, ...)`. Unrelated properties are never removed.
 
 - **Directive:** set `[blockDefinitions]="definitions"` (e.g. `{ userCard: userCardBlock }`) when you want to supply definitions per tree or route. If a reference’s `blockId` is not in `blockDefinitions`, resolution falls back to the global **BlockDefinitionsRegistry** (see [Registry](registry.md)).
@@ -158,8 +158,8 @@ const userCardBlock = {
   id: 'UserCard',
   inputs: {
     rows: [
-      { columns: [{ component: 'HtmlBlock', inputs: { html: '{{UserCard.instance.FormState.name}}' } }] },
-      { columns: [{ component: 'StringInput', inputs: { label: 'Name', value: '[(UserCard.instance.FormState.name)]' } }] },
+      { columns: [{ component: 'HtmlBlock', inputs: { html: '{{UserCard:FormState.name}}' } }] },
+      { columns: [{ component: 'StringInput', inputs: { label: 'Name', value: '[(UserCard:FormState.name)]' } }] },
     ],
   },
   services: [{ id: 'FormState', scope: 'self' as const }],
@@ -174,17 +174,13 @@ data: { block: { blockId: 'UserCard' }, blockDefinitions: { UserCard: userCardBl
 
 **3. Reuse with different data (same layout; pass model via `[model]` or route data):**
 
+Pass the model via the directive’s `[model]` input or route data, not via `blockDefinition.inputs.model` (the loader ignores `inputs.model`).
+
 ```typescript
 data: {
-  block: {
-    blockId: 'UserCard',
-    blockDefinition: {
-      inputs: {
-        model: { name: 'Jane Doe' },  // only this is overridden; rows, services, etc. unchanged
-      },
-    },
-  },
+  block: { blockId: 'UserCard' },
   blockDefinitions: { UserCard: userCardBlock },
+  model: { name: 'Jane Doe', email: 'jane@example.com' },
 }
 ```
 
@@ -266,7 +262,7 @@ const block = {
         columns: [
           {
             component: 'StringInput',
-            inputs: { label: 'First name', value: '[(MyForm.instance.FormState.firstName)]' },
+            inputs: { label: 'First name', value: '[(MyForm:FormState.firstName)]' },
           },
         ],
       },
@@ -323,13 +319,13 @@ const userCardBlock = {
     rows: [
       {
         columns: [
-          { component: 'HtmlBlock', inputs: { html: '{{UserCard.instance.FormState.name}}' } },
+          { component: 'HtmlBlock', inputs: { html: '{{UserCard:FormState.name}}' } },
         ],
       },
       {
         columns: [
-          { component: 'StringInput', inputs: { label: 'Name', value: '[(UserCard.instance.FormState.name)]' } },
-          { component: 'StringInput', inputs: { label: 'Email', value: '[(UserCard.instance.FormState.email)]' } },
+          { component: 'StringInput', inputs: { label: 'Name', value: '[(UserCard:FormState.name)]' } },
+          { component: 'StringInput', inputs: { label: 'Email', value: '[(UserCard:FormState.email)]' } },
         ],
       },
     ],

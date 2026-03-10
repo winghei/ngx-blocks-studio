@@ -1,11 +1,16 @@
 import type { Signal } from '@angular/core';
 
+export interface CurrentInstance {
+  model?: Signal<unknown>;
+  [key: string]: unknown;
+}
+
 /**
  * Handle for a registered block: exposes instance (services/state by name) for ref resolution.
  */
 export interface BlockInstanceHandle {
   /** Instance: services and state by name (e.g. FormState, value). */
-  instance: Record<string, unknown>;
+  instance: CurrentInstance;
   /** Optional cleanup when block is destroyed. */
   destroy?: () => void;
 }

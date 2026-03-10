@@ -24,7 +24,7 @@ import {
   safeParseBlockDescription,
   type ServiceEntry,
 } from './block-description.schema';
-import { BlockRegistryImpl, type BlockInstanceHandle, type BlockRegistry } from './block-registry';
+import { BlockRegistryImpl, CurrentInstance, type BlockInstanceHandle, type BlockRegistry } from './block-registry';
 import { createOutputHandler } from './output-reference';
 import { classifyTwoWayString, parseTwoWayRef } from './ref-expressions';
 import {
@@ -105,7 +105,7 @@ export class BlockLoaderService {
       injector: childInjector,
     });
 
-    const blockInstance: Record<string, unknown> = {};
+    const blockInstance: CurrentInstance = {};
     for (let i = 0; i < selfServices.length; i++) {
       const alias = selfServices[i].alias ?? selfServices[i].id;
       const serviceType = selfServiceTypes[i];
@@ -185,7 +185,7 @@ export class BlockLoaderService {
   ): EffectRef[] {
     const effectRefs: EffectRef[] = [];
     const inputs = desc.inputs ?? {};
-    const inst = componentRef.instance as Record<string, unknown>;
+    const inst = componentRef.instance as CurrentInstance;
 
     if ('registry' in inst) {
       const model = inst['registry'];
@@ -246,12 +246,7 @@ export class BlockLoaderService {
         effectRefs.push(
           effect(
             () => {
-              const modelSig = ctx.currentInstance?.['model'];
-              const model =
-                modelSig != null && isSignal(modelSig)
-                  ? (modelSig as Signal<unknown>)()
-                  : (modelSig as unknown);
-              const resolved = this.interpolateTemplateMixed(str, ctx, model);
+              const resolved = this.interpolateTemplateMixed(str, ctx);
               if (componentRef.setInput) componentRef.setInput(key as never, resolved as never);
             },
             { injector: this.injector },
@@ -269,7 +264,7 @@ export class BlockLoaderService {
   /** Resolve model from desc (interpolate ref if string) and set on services and blockInstance. */
   private applyInitialModel(
     ctx: ResolverContext,
-    blockInstance: Record<string, unknown>,
+    blockInstance: CurrentInstance,
     blockModel: Signal<unknown | undefined>,
   ): void {
     const directiveModel = blockModel();
@@ -295,7 +290,7 @@ export class BlockLoaderService {
   }
 
   /** If model is a ref string, return an effect that keeps setModel/blockInstance in sync with the ref. */
-  private applyModelReactivity(blockInstance: Record<string, unknown>): EffectRef[] {
+  private applyModelReactivity(blockInstance: CurrentInstance): EffectRef[] {
     const blockModel = blockInstance['model'] as Signal<unknown | undefined>;
 
     if (!isSignal(blockModel)) {
@@ -306,8 +301,8 @@ export class BlockLoaderService {
       () => {
         const model = blockModel();
         for (const svc of Object.values(blockInstance)) {
-          if (svc != null && typeof (svc as Record<string, unknown>)['setModel'] === 'function') {
-            ((svc as Record<string, unknown>)['setModel'] as (v: unknown) => void)(model);
+          if (svc != null && typeof (svc as CurrentInstance)['setModel'] === 'function') {
+            ((svc as CurrentInstance)['setModel'] as (v: unknown) => void)(model);
           }
         }
       },
@@ -317,10 +312,10 @@ export class BlockLoaderService {
   }
 
   /**
-   * Replace each {{ refPath }} with a value: resolve as ref first (e.g. Person.instance.AuthState.firstName),
-   * else as model path (e.g. firstName, instance.model.firstName). Allows mixing both in one template.
+   * Replace each {{ refPath }} with a value: resolve as ref first (e.g. PersonForm:FormState.firstName),
+   * else as model path (e.g. age). Format: "model.path" or "BlockID:model.path". Allows mixing both in one template.
    */
-  private interpolateTemplateMixed(template: string, ctx: ResolverContext, model: unknown): string {
+  private interpolateTemplateMixed(template: string, ctx: ResolverContext): string {
     const parts: string[] = [];
     let s = template;
     for (let i = 0; i < BlockLoaderService.INTERPOLATE_MAX_PLACEHOLDERS; i++) {
@@ -336,10 +331,12 @@ export class BlockLoaderService {
         break;
       }
       const ref = s.slice(start + 2, end).trim();
+      /** Resolve ref path or get value from model if ref path is not found. */
+      const resolved = resolveRefPath(ref, ctx);
       const val = ref
-        ? resolveRefPath(ref, ctx) != null
+        ? resolved != null
           ? getRefValue(ref, ctx)
-          : getValueByPath(model, ref)
+          : getValueByPath(ctx.currentInstance?.model?.() ?? {}, ref)
         : null;
       parts.push(val != null ? String(val) : '');
       s = s.slice(end + 2);
