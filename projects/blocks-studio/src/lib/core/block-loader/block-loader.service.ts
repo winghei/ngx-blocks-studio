@@ -133,7 +133,7 @@ export class BlockLoaderService {
     this.applyInitialModel(ctx, blockInstance, model);
     let currentEffectRefs = this.setInputs(componentRef, desc, ctx, model);
     currentEffectRefs = currentEffectRefs.concat(this.applyModelReactivity(blockInstance));
-    const subscriptions = this.wireOutputs(componentRef, desc, registry, options?.outputHandlers);
+    const subscriptions = this.wireOutputs(componentRef, desc, ctx, options?.outputHandlers);
 
     const doDestroy = (): void => {
       if (desc.id != null && desc.id !== '') registry.unregister(desc.id);
@@ -430,14 +430,14 @@ export class BlockLoaderService {
   private wireOutputs(
     componentRef: ComponentRef<unknown>,
     desc: BlockDescription,
-    registry: BlockRegistry,
+    ctx: ResolverContext,
     outputHandlers?: Record<string, (value: unknown) => void>,
   ): Subscription[] {
     const subs: Subscription[] = [];
     const outputs = desc.outputs ?? {};
     const inst = componentRef.instance as Record<string, unknown>;
     for (const [outputKey, outputValue] of Object.entries(outputs)) {
-      const handler = createOutputHandler(outputValue, outputKey, registry, outputHandlers);
+      const handler = createOutputHandler(outputValue, outputKey, ctx, outputHandlers);
       const emitter = inst[outputKey];
       if (
         emitter != null &&

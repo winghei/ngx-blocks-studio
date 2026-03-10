@@ -1,12 +1,9 @@
-import type { BlockRegistry } from './block-registry';
 import { type OutputReference, isOutputReference } from './block-description.schema';
+import type { ResolverContext } from './ref-resolver';
 import { resolveRefPath } from './ref-resolver';
 
-function getCallTarget(
-  reference: string,
-  registry: BlockRegistry
-): unknown {
-  const resolved = resolveRefPath(reference, { registry });
+function getCallTarget(reference: string, ctx: ResolverContext): unknown {
+  const resolved = resolveRefPath(reference, ctx);
   if (resolved == null) return undefined;
   const { target, path } = resolved;
   if (path.length === 0) return target;
@@ -23,24 +20,27 @@ function getMethodOnTarget(target: unknown, methodName: string): ((...args: unkn
 export function resolveOutputReference(
   ref: OutputReference,
   eventValue: unknown,
-  registry: BlockRegistry
+  ctx: ResolverContext
 ): (value: unknown) => void {
   return (value: unknown) => {
     const payload = value ?? eventValue;
-    const callTarget = getCallTarget(ref.reference, registry);
+    const callTarget = getCallTarget(ref.reference, ctx);
     const method = getMethodOnTarget(callTarget, ref.method);
-    if (method == null) return;
+    if (method == null) {
+      console.warn(`Output reference ${ref.reference} has no method ${ref.method}`);
+      return;
+    }
     const params = ref.params != null
       ? (Array.isArray(ref.params) ? ref.params : [ref.params])
       : [payload];
     const result = method.call(callTarget, ...params);
     if (result != null && typeof (result as Promise<unknown>).then === 'function') {
       (result as Promise<unknown>).then(
-        () => runThenOrSuccess(ref, registry),
-        () => runOnError(ref, registry)
+        () => runThenOrSuccess(ref, ctx),
+        () => runOnError(ref, ctx)
       );
     } else {
-      runThenOrSuccess(ref, registry);
+      runThenOrSuccess(ref, ctx);
     }
   };
 }
@@ -50,29 +50,29 @@ function toParams(p: unknown[] | Record<string, unknown> | undefined): unknown[]
   return Array.isArray(p) ? p : [p];
 }
 
-function runThenOrSuccess(ref: OutputReference, registry: BlockRegistry): void {
+function runThenOrSuccess(ref: OutputReference, ctx: ResolverContext): void {
   if (ref.then?.length) {
     for (const step of ref.then) {
-      invokeRefMethod(registry, step.reference, step.method, toParams(step.params));
+      invokeRefMethod(ctx, step.reference, step.method, toParams(step.params));
     }
   } else if (ref.onSuccess) {
-    invokeRefMethod(registry, ref.onSuccess.reference, ref.onSuccess.method, toParams(ref.onSuccess.params));
+    invokeRefMethod(ctx, ref.onSuccess.reference, ref.onSuccess.method, toParams(ref.onSuccess.params));
   }
 }
 
-function runOnError(ref: OutputReference, registry: BlockRegistry): void {
+function runOnError(ref: OutputReference, ctx: ResolverContext): void {
   if (ref.onError) {
-    invokeRefMethod(registry, ref.onError.reference, ref.onError.method, toParams(ref.onError.params));
+    invokeRefMethod(ctx, ref.onError.reference, ref.onError.method, toParams(ref.onError.params));
   }
 }
 
 function invokeRefMethod(
-  registry: BlockRegistry,
+  ctx: ResolverContext,
   reference: string,
   method: string,
   params: unknown[]
 ): void {
-  const callTarget = getCallTarget(reference, registry);
+  const callTarget = getCallTarget(reference, ctx);
   const fn = getMethodOnTarget(callTarget, method);
   if (fn) fn.call(callTarget, ...params);
 }
@@ -80,11 +80,11 @@ function invokeRefMethod(
 export function createOutputHandler(
   outputValue: unknown,
   outputKey: string,
-  registry: BlockRegistry,
+  ctx: ResolverContext,
   directiveHandlers?: Record<string, (value: unknown) => void>
 ): (value: unknown) => void {
   if (isOutputReference(outputValue)) {
-    return resolveOutputReference(outputValue, undefined, registry);
+    return resolveOutputReference(outputValue, undefined, ctx);
   }
   const fromDirective = directiveHandlers?.[outputKey];
   return fromDirective ?? (() => {});
