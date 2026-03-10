@@ -39,15 +39,21 @@ export function resolveRefPath(
   }
   if (instance == null) return null;
 
-  const service = instance[serviceOrProp];
+  let service: unknown = instance[serviceOrProp];
   if (rest.length === 0) {
     return { target: service, path: [] };
   }
   let current: unknown = service;
   for (let i = 0; i < rest.length - 1; i++) {
+    // Unwrap signals at each segment after `.instance` so instance.model.item.a works
+    if (current != null && isSignal(current)) {
+      current = (current as Signal<unknown>)();
+    }
     if (current == null || typeof current !== 'object') return null;
     current = (current as Record<string, unknown>)[rest[i]];
   }
+  // Do not unwrap the final segment here; leave it to getRefValue / setRefValue so they
+  // can consistently handle signals and functions at the leaf.
   return { target: current, path: rest.slice(-1) };
 }
 
@@ -81,16 +87,21 @@ export function refPathResolvesToSignal(refPath: string, ctx: ResolverContext): 
 
 /**
  * Get value at ref path (read-only). Returns undefined if not found.
+ * When target is a Signal (e.g. instance.model) and path has segments, unwraps the Signal first
+ * so refs like PersonForm.instance.model.firstName resolve correctly.
  */
 export function getRefValue(refPath: string, ctx: ResolverContext): unknown {
   const resolved = resolveRefPath(refPath, ctx);
   if (resolved == null || resolved.path.length === 0) {
     return resolved?.target;
   }
-  const obj = resolved.target as Record<string, unknown>;
+  let obj: unknown = resolved.target;
+  // Unwrap Signal so we can read properties (e.g. PersonForm.instance.model.firstName)
+  if (obj != null && isSignal(obj)) {
+    obj = (obj as Signal<unknown>)();
+  }
   const key = resolved.path[0];
-  const val = obj?.[key];
-  // Unwrap Angular signals and other getter functions by calling them
+  const val = (obj as Record<string, unknown>)?.[key];
   if (val != null && isSignal(val)) {
     return val();
   }

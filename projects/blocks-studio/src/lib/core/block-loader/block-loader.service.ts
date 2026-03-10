@@ -189,7 +189,7 @@ export class BlockLoaderService {
 
     if ('registry' in inst) {
       const model = inst['registry'];
-    
+
       if (isSignal(model) && componentRef.setInput) {
         componentRef.setInput('registry', ctx.registry);
       }
@@ -291,12 +291,6 @@ export class BlockLoaderService {
 
     if (blockInstanceModel != null) {
       blockInstance['model'] = blockInstanceModel;
-      const model = blockInstanceModel();
-      for (const svc of Object.values(blockInstance)) {
-        if (svc != null && typeof (svc as Record<string, unknown>)['setModel'] === 'function') {
-          ((svc as Record<string, unknown>)['setModel'] as (v: unknown) => void)(model);
-        }
-      }
     }
   }
 
