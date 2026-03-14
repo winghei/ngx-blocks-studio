@@ -15,7 +15,12 @@ const personFormBlock = {
         columns: [
           {
             component: 'HtmlBlock',
-            model: { firstName: 'John', items: { a: 1, b: 2, sub: { a: 134, b: 2 } }, lastName: 'Doe', age: 30 },
+            model: {
+              firstName: 'John',
+              items: { a: 1, b: 2, sub: { a: 134, b: 2 } },
+              lastName: 'Doe',
+              age: 30,
+            },
             inputs: {
               html: 'hello  {{items.a}} {{items.sub.a}} {{PersonForm:FormState.nestedSignal.sub.a}} {{PersonForm:FormState.lastName}} {{age}}',
             },
@@ -38,6 +43,24 @@ const personFormBlock = {
               label: 'Last name',
               value: '[(PersonForm:FormState.lastName)]',
               placeholder: 'Last name',
+            },
+          },
+          {
+            component: 'NumberInput',
+            inputs: {
+              label: 'Age',
+              value: '{{PersonForm:FormState.age}}',
+              min: 0,
+              max: 120,
+            },
+            services: [{ id: 'FormState', scope: 'self' as const }],
+            outputs: {
+              valueChange: {
+                type: 'reference' as const,
+                reference: 'FormState',
+                method: 'alert',
+                params: ['Age changed to {{value}}'],
+              },
             },
           },
         ],

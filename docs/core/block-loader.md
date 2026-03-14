@@ -30,7 +30,7 @@ projects/blocks-studio/src/lib/core/block-loader/
 ## Overview
 
 - **BlockDirective** – Renders one block from a description or block reference; use `[block]` with `[description]="desc"`, and optionally `[model]`, `[blockRegistry]="registry"`, and `[blockDefinitions]="definitions"` so nested blocks share the registry and references resolve.
-- **BlockLoaderService** – Validates the description (or resolves a block reference via `blockDefinitions` or global [BlockDefinitionsRegistry](registry.md#block-definitions-registry) and deep-merges `blockDefinition`), resolves the component (via [ComponentRegistry](registry.md)), builds a child injector for self-scoped services, creates the component, builds **instance** (services/state by name), seeds **model** from the directive’s `[model]` input (or the `model` argument when calling `load()`), resolves inputs (refs or literals), wires outputs (reference-based or directive-provided), and registers/unregisters by **id**.
+- **BlockLoaderService** – Validates the description (or resolves a block reference via `blockDefinitions` or global [BlockDefinitionsRegistry](registry.md#block-definitions-registry) and deep-merges `blockDefinition`), resolves the component (via [ComponentRegistry](registry.md)) and optional host directives (via [DirectiveRegistry](registry.md)), builds a child injector for self-scoped services, creates the component with host directives, resolves host directive instances from the injector, builds **instance** (services/state by name), seeds **model** from the directive’s `[model]` input (or the `model` argument when calling `load()`), validates that each input/output key exists on the component or at least one host directive (warns and skips otherwise), then resolves inputs and wires outputs on **all** matching targets (component and directives). Registers/unregisters by **id**.
 - **BlockRegistry** – One registry per tree; maps block **id** to a handle with **instance** (and optional **destroy**). Duplicate id in the same tree throws.
 
 ## Description shape
@@ -45,8 +45,9 @@ You can pass a **full description** (see table below) or a **block reference** t
 | `component` | `string` | Yes (full) | Component key (resolved via [ComponentRegistry](registry.md)). Omit when using a block reference. |
 | `id`       | `string` | No  | Unique id for this block; used for registry and cross-block refs. At most one per id per tree. With a block reference, can override the instance id. |
 | `services` | `string \| { id, scope?, alias? } \| array` | No | Service ids: **root-scoped** (string or `{ id, alias? }` with no scope) resolved from the host injector when using the directive, or **self-scoped** (`{ id, scope: "self", alias? }`) with a new instance per block. |
-| `inputs`   | `Record<string, unknown>` | No | Component inputs. See [Inputs](#inputs) for value types and special cases. |
-| `outputs`  | `Record<string, unknown>` | No | Output names → handler config. See [Outputs as reference](#outputs-as-reference). |
+| `directives` | `string \| string[]` | No | Directive keys (resolved via [DirectiveRegistry](registry.md)). Applied as host directives on the dynamically created component. Inputs/outputs can target the component and/or these directives; see [Host directives and inputs/outputs](#host-directives-and-inputsoutputs). |
+| `inputs`   | `Record<string, unknown>` | No | Inputs for the component and/or host directives. See [Inputs](#inputs) and [Host directives and inputs/outputs](#host-directives-and-inputsoutputs). |
+| `outputs`  | `Record<string, unknown>` | No | Output names → handler config for the component and/or host directives. See [Outputs as reference](#outputs-as-reference) and [Host directives and inputs/outputs](#host-directives-and-inputsoutputs). |
 
 ---
 
@@ -92,6 +93,38 @@ Input resolution runs in a fixed order. Each input key is handled as follows.
 | Array / object | Recursively resolved; two-way refs preserved inside nested block `inputs`. |
 
 Refs are resolved against the **current block** when no prefix is used (`model.path`). For another block use **BlockID:model.path** (e.g. `PersonForm:FormState.firstName`).
+
+---
+
+## Host directives and inputs/outputs
+
+When a block description includes **`directives`** (an array of directive ids resolved via [DirectiveRegistry](registry.md)), those directives are applied as **host directives** on the dynamically created component. The same flat **`inputs`** and **`outputs`** maps apply to both the component and the host directives.
+
+### Validation first
+
+Before resolving or wiring anything, the loader checks each key in `inputs` and `outputs`:
+
+- **Inputs:** For each key, it checks whether that key exists on the **component** or on **any** host directive instance. If **no** target has the key, the loader logs a warning (e.g. `Block input "foo" is not defined on the component or any host directive; skipping.`) and **skips** that key (no resolution or set).
+- **Outputs:** Same for each output key: if neither the component nor any host directive has a subscribable at that key, the loader warns and skips that key.
+
+So resolution and wiring run only for keys that have at least one valid target. Invalid keys are never resolved.
+
+### Name clash: set for all targets
+
+If the **same** key exists on the **component and one or more host directives**, the loader:
+
+- Resolves the value **once** (same rules as [Inputs](#inputs): literals, `{{ }}`, `[( )]`, etc.).
+- **Sets** it on **every** target that has that input (component and each directive with that key).
+- For **outputs**, builds the handler **once** and **subscribes** on **every** target that has that output.
+
+So there is no “component wins” or “directive wins”: every target that declares the key receives the same value or the same handler.
+
+### How targets are found
+
+- **Input:** A target “has” an input if the component instance or directive instance has that property (e.g. `key in instance`).
+- **Output:** A target “has” an output if the instance has a property at that key that has a `.subscribe` method (e.g. an `EventEmitter` or `OutputEmitterRef`).
+
+Host directive instances are obtained from the component’s injector after `createComponent(..., { directives: directiveTypes })`. If a directive type cannot be resolved from the injector, that directive is not considered when computing targets.
 
 ---
 

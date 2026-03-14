@@ -50,6 +50,10 @@ export class FormStateService {
     if (model.age !== undefined) this.age.set(model.age);
   }
 
+  alert(message: string): void {
+   console.log(message);
+  }
+
   constructor(){
     interval(1000).subscribe(() => {
       const newSubSignal = signal("SubSignal " + new Date().toISOString());

@@ -1,7 +1,7 @@
 /**
- * Registry entry type: component, service, or guard.
+ * Registry entry type: component, service, guard, or directive.
  */
-export type RegistryEntryType = 'component' | 'service' | 'guard';
+export type RegistryEntryType = 'component' | 'service' | 'guard' | 'directive';
 
 /**
  * Metadata value stored per registry key.
@@ -12,6 +12,7 @@ export interface AllRegistryMetadata {
   components: Map<string, RegistryMetadataRecord>;
   services: Map<string, RegistryMetadataRecord>;
   guards: Map<string, RegistryMetadataRecord>;
+  directives: Map<string, RegistryMetadataRecord>;
 }
 
 /**
@@ -74,6 +75,7 @@ export class RegistryMetadataStore {
       components: this.getByType('component'),
       services: this.getByType('service'),
       guards: this.getByType('guard'),
+      directives: this.getByType('directive'),
     };
   }
 

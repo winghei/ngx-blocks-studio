@@ -1,4 +1,5 @@
 export { ComponentRegistry } from './component.registry';
+export { DirectiveRegistry } from './directive.registry';
 export { GuardRegistry, type GuardOrType, type GuardLoader, type GuardOrLoader } from './guard.registry';
 export { ServiceRegistry } from './service.registry';
 export {

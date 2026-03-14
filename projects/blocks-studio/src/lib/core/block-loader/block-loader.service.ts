@@ -13,12 +13,14 @@ import {
 } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { ComponentRegistry } from '../registry/component.registry';
+import { DirectiveRegistry } from '../registry/directive.registry';
 import { ServiceRegistry } from '../registry/service.registry';
 import {
   BlockDescription,
   type BlockInput,
   type BlockReference,
   isBlockReference,
+  normalizeDirectives,
   normalizeServices,
   resolveBlockReference,
   safeParseBlockDescription,
@@ -35,6 +37,11 @@ import {
   resolveRefPath,
   setRefValue,
 } from './ref-resolver';
+
+/** Target for setting an input or wiring an output: component or a host directive instance. */
+export type InputOutputTarget =
+  | { type: 'component'; componentRef: ComponentRef<unknown> }
+  | { type: 'directive'; instance: Record<string, unknown> };
 
 export interface BlockLoadOptions {
   outputHandlers?: Record<string, (value: unknown) => void>;
@@ -53,6 +60,7 @@ export interface BlockLoadResult {
 export class BlockLoaderService {
   private readonly injector = inject(Injector);
   private readonly componentRegistry = ComponentRegistry.getInstance();
+  private readonly directiveRegistry = DirectiveRegistry.getInstance();
   private readonly serviceRegistry = ServiceRegistry.getInstance();
 
   async load(
@@ -97,13 +105,21 @@ export class BlockLoaderService {
       );
     const selfServiceTypes = await this.getServiceTypes(selfServices);
     const rootServiceTypes = await this.getServiceTypes(rootEntries);
+    const directiveIds = normalizeDirectives(desc.directives);
+    const directiveTypes = await this.getDirectiveTypes(directiveIds);
     // Use the view container's injector as parent so the created component participates in the
     // same injector hierarchy (e.g. RouteBlockComponent), giving RouterOutlet access to ActivatedRoute.
     const parentInjector = viewContainerRef.injector;
     const childInjector = this.buildChildInjectorFromTypes(selfServiceTypes, parentInjector);
     const componentRef = viewContainerRef.createComponent(componentType as Type<unknown>, {
       injector: childInjector,
+      directives: directiveTypes.filter((d): d is Type<unknown> => d != null),
     });
+
+    const directiveInstances = this.getDirectiveInstances(
+      componentRef,
+      directiveTypes.filter((d): d is Type<unknown> => d != null),
+    );
 
     const blockInstance: CurrentInstance = {};
     for (let i = 0; i < selfServices.length; i++) {
@@ -131,9 +147,15 @@ export class BlockLoaderService {
     if (desc.id != null && desc.id !== '') registry.register(desc.id, handle);
 
     this.applyInitialModel(ctx, blockInstance, model);
-    let currentEffectRefs = this.setInputs(componentRef, desc, ctx, model);
+    let currentEffectRefs = this.setInputs(componentRef, directiveInstances, desc, ctx, model);
     currentEffectRefs = currentEffectRefs.concat(this.applyModelReactivity(blockInstance));
-    const subscriptions = this.wireOutputs(componentRef, desc, ctx, options?.outputHandlers);
+    const subscriptions = this.wireOutputs(
+      componentRef,
+      directiveInstances,
+      desc,
+      ctx,
+      options?.outputHandlers,
+    );
 
     const doDestroy = (): void => {
       if (desc.id != null && desc.id !== '') registry.unregister(desc.id);
@@ -150,7 +172,13 @@ export class BlockLoaderService {
       if (p.success) {
         currentEffectRefs.forEach((ref) => ref.destroy());
         this.applyInitialModel(ctx, blockInstance, model);
-        currentEffectRefs = this.setInputs(componentRef, p.data, ctx, model);
+        currentEffectRefs = this.setInputs(
+          componentRef,
+          directiveInstances,
+          p.data,
+          ctx,
+          model,
+        );
         currentEffectRefs = currentEffectRefs.concat(this.applyModelReactivity(blockInstance));
       }
     };
@@ -162,6 +190,72 @@ export class BlockLoaderService {
   private async getServiceTypes(entries: { id: string }[]): Promise<(Type<unknown> | undefined)[]> {
     if (entries.length === 0) return [];
     return Promise.all(entries.map((e) => this.serviceRegistry.getType(e.id)));
+  }
+
+  /** Resolve all directive types by id in parallel. */
+  private async getDirectiveTypes(ids: string[]): Promise<(Type<unknown> | undefined)[]> {
+    if (ids.length === 0) return [];
+    return Promise.all(ids.map((id) => this.directiveRegistry.get(id)));
+  }
+
+  /**
+   * Resolve host directive instances from the component's injector (or parent).
+   * Returns an array parallel to directiveTypes; entries may be null if not found.
+   */
+  private getDirectiveInstances(
+    componentRef: ComponentRef<unknown>,
+    directiveTypes: Type<unknown>[],
+  ): (Record<string, unknown> | null)[] {
+    if (directiveTypes.length === 0) return [];
+    const injector = componentRef.injector;
+    return directiveTypes.map((dirType) => {
+      try {
+        const instance = injector.get(dirType, null);
+        return instance != null && typeof instance === 'object' ? (instance as Record<string, unknown>) : null;
+      } catch {
+        return null;
+      }
+    });
+  }
+
+  /** Return all targets (component and directives) that have this input key. */
+  private getInputTargets(
+    key: string,
+    componentRef: ComponentRef<unknown>,
+    directiveInstances: (Record<string, unknown> | null)[],
+  ): InputOutputTarget[] {
+    const targets: InputOutputTarget[] = [];
+    const compInst = componentRef.instance as Record<string, unknown>;
+    if (Object.prototype.hasOwnProperty.call(compInst, key)) {
+      targets.push({ type: 'component', componentRef });
+    }
+    for (const inst of directiveInstances) {
+      if (inst != null && Object.prototype.hasOwnProperty.call(inst, key)) {
+        targets.push({ type: 'directive', instance: inst });
+      }
+    }
+    return targets;
+  }
+
+  /** Return all targets (component and directives) that have a subscribable output at this key. */
+  private getOutputTargets(
+    key: string,
+    componentRef: ComponentRef<unknown>,
+    directiveInstances: (Record<string, unknown> | null)[],
+  ): InputOutputTarget[] {
+    const targets: InputOutputTarget[] = [];
+    const hasSubscribe = (v: unknown): boolean =>
+      v != null && typeof (v as { subscribe?: unknown }).subscribe === 'function';
+    const compInst = componentRef.instance as Record<string, unknown>;
+    if (hasSubscribe(compInst[key])) {
+      targets.push({ type: 'component', componentRef });
+    }
+    for (const inst of directiveInstances) {
+      if (inst != null && hasSubscribe(inst[key])) {
+        targets.push({ type: 'directive', instance: inst });
+      }
+    }
+    return targets;
   }
 
   private buildChildInjectorFromTypes(
@@ -176,9 +270,27 @@ export class BlockLoaderService {
       : Injector.create({ providers, parent: parentInjector });
   }
 
-  /** Set inputs and wire template/two-way effects. Single pass over inputs for large configs. */
+  /** Set a resolved value on a single target (component or directive). */
+  private setInputOnTarget(target: InputOutputTarget, key: string, value: unknown): void {
+    if (target.type === 'component') {
+      if (target.componentRef.setInput) {
+        target.componentRef.setInput(key as never, value as never);
+      }
+    } else {
+      const inst = target.instance;
+      const current = inst[key];
+      if (isWritableSignal(current)) {
+        current.set(value);
+      } else {
+        inst[key] = value;
+      }
+    }
+  }
+
+  /** Set inputs and wire template/two-way effects. Only processes keys that exist on component or a directive. */
   private setInputs(
     componentRef: ComponentRef<unknown>,
+    directiveInstances: (Record<string, unknown> | null)[],
     desc: BlockDescription,
     ctx: ResolverContext,
     blockModel?: Signal<unknown | undefined>,
@@ -189,13 +301,20 @@ export class BlockLoaderService {
 
     if ('registry' in inst) {
       const model = inst['registry'];
-
       if (isSignal(model) && componentRef.setInput) {
         componentRef.setInput('registry', ctx.registry);
       }
     }
 
     for (const [key, value] of Object.entries(inputs)) {
+      const targets = this.getInputTargets(key, componentRef, directiveInstances);
+      if (targets.length === 0) {
+        console.warn(
+          `Block input "${key}" is not defined on the component or any host directive; skipping.`,
+        );
+        continue;
+      }
+
       if (typeof value === 'string') {
         const twoWayKind = classifyTwoWayString(value);
         if (twoWayKind === 'invalid-mix') {
@@ -207,31 +326,34 @@ export class BlockLoaderService {
         if (twoWayKind === 'two-way') {
           const refPath = parseTwoWayRef(value);
           if (refPath) {
-            const modelSig = inst[key];
-            if (modelSig != null && isSignal(modelSig)) {
-              effectRefs.push(
-                effect(
-                  () => {
-                    const fromRef = getRefValue(refPath, ctx);
-                    if (fromRef === undefined) return;
-                    if (isWritableSignal(modelSig)) {
-                      modelSig.set(fromRef);
-                    } else {
-                      inst[key] = fromRef;
-                    }
-                  },
-                  { injector: this.injector },
-                ),
-              );
-              effectRefs.push(
-                effect(
-                  () => {
-                    const current = modelSig();
-                    setRefValue(refPath, ctx, current);
-                  },
-                  { injector: this.injector },
-                ),
-              );
+            for (const target of targets) {
+              const targetInst = target.type === 'component' ? target.componentRef.instance : target.instance;
+              const modelSig = (targetInst as Record<string, unknown>)[key];
+              if (modelSig != null && isSignal(modelSig)) {
+                effectRefs.push(
+                  effect(
+                    () => {
+                      const fromRef = getRefValue(refPath, ctx);
+                      if (fromRef === undefined) return;
+                      if (isWritableSignal(modelSig)) {
+                        modelSig.set(fromRef);
+                      } else {
+                        (targetInst as Record<string, unknown>)[key] = fromRef;
+                      }
+                    },
+                    { injector: this.injector },
+                  ),
+                );
+                effectRefs.push(
+                  effect(
+                    () => {
+                      const current = modelSig();
+                      setRefValue(refPath, ctx, current);
+                    },
+                    { injector: this.injector },
+                  ),
+                );
+              }
             }
           }
           continue;
@@ -247,7 +369,9 @@ export class BlockLoaderService {
           effect(
             () => {
               const resolved = this.interpolateTemplateMixed(str, ctx);
-              if (componentRef.setInput) componentRef.setInput(key as never, resolved as never);
+              for (const target of targets) {
+                this.setInputOnTarget(target, key, resolved);
+              }
             },
             { injector: this.injector },
           ),
@@ -256,7 +380,9 @@ export class BlockLoaderService {
       }
 
       const resolved = this.resolveInputValue(value, ctx);
-      if (componentRef.setInput) componentRef.setInput(key as never, resolved as never);
+      for (const target of targets) {
+        this.setInputOnTarget(target, key, resolved);
+      }
     }
     return effectRefs;
   }
@@ -429,26 +555,38 @@ export class BlockLoaderService {
 
   private wireOutputs(
     componentRef: ComponentRef<unknown>,
+    directiveInstances: (Record<string, unknown> | null)[],
     desc: BlockDescription,
     ctx: ResolverContext,
     outputHandlers?: Record<string, (value: unknown) => void>,
   ): Subscription[] {
     const subs: Subscription[] = [];
     const outputs = desc.outputs ?? {};
-    const inst = componentRef.instance as Record<string, unknown>;
+    const emitterType = {
+      subscribe: (fn: (v: unknown) => void) => ({ unsubscribe: () => {} }),
+    };
+    type Subscribable = typeof emitterType;
+
     for (const [outputKey, outputValue] of Object.entries(outputs)) {
+      const targets = this.getOutputTargets(outputKey, componentRef, directiveInstances);
+      if (targets.length === 0) {
+        console.warn(
+          `Block output "${outputKey}" is not defined on the component or any host directive; skipping.`,
+        );
+        continue;
+      }
+
       const handler = createOutputHandler(outputValue, outputKey, ctx, outputHandlers);
-      const emitter = inst[outputKey];
-      if (
-        emitter != null &&
-        typeof (
-          emitter as { subscribe?: (fn: (v: unknown) => void) => { unsubscribe: () => void } }
-        ).subscribe === 'function'
-      ) {
-        const sub = (
-          emitter as { subscribe: (fn: (v: unknown) => void) => { unsubscribe: () => void } }
-        ).subscribe((v: unknown) => handler(v));
-        subs.push(sub as unknown as Subscription);
+      for (const target of targets) {
+        const inst = target.type === 'component' ? target.componentRef.instance : target.instance;
+        const emitter = (inst as Record<string, unknown>)[outputKey];
+        if (
+          emitter != null &&
+          typeof (emitter as Subscribable).subscribe === 'function'
+        ) {
+          const sub = (emitter as Subscribable).subscribe((v: unknown) => handler(v));
+          subs.push(sub as unknown as Subscription);
+        }
       }
     }
     return subs;

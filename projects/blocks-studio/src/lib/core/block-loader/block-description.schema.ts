@@ -60,9 +60,10 @@ export const BlockDescriptionSchema = z.object({
     .union([ServiceEntrySchema, z.array(ServiceEntrySchema)])
     .optional()
     .default([]),
+  /** Registered directive ids to apply to the host of the dynamically created component. */
+  directives: z.union([z.string().min(1), z.array(z.string().min(1))]).optional().default([]),
   inputs: z.record(z.string(), z.unknown()).optional(),
   outputs: z.record(z.string(), OutputValueSchema).optional(),
-
 });
 
 export type BlockDescription = z.infer<typeof BlockDescriptionSchema>;
@@ -74,6 +75,12 @@ export type OutputReference = z.infer<typeof OutputReferenceSchema>;
 export function normalizeServices(services: BlockDescription['services']): ServiceEntry[] {
   if (services == null) return [];
   return Array.isArray(services) ? services : [services];
+}
+
+/** Normalize directives to array of directive ids. */
+export function normalizeDirectives(directives: BlockDescription['directives']): string[] {
+  if (directives == null) return [];
+  return Array.isArray(directives) ? directives : [directives];
 }
 
 export function safeParseBlockDescription(

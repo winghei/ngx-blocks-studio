@@ -1,17 +1,18 @@
 # Registry
 
-The registry module provides a unified system for registering and resolving Angular **components**, **services**, and **guards** by name, with optional **metadata** and **lazy loading**. Metadata is stored in a single shared store so it can be queried per registry or for all registries at once.
+The registry module provides a unified system for registering and resolving Angular **components**, **directives**, **services**, and **guards** by name, with optional **metadata** and **lazy loading**. Metadata is stored in a single shared store so it can be queried per registry or for all registries at once.
 
 **Source:** `projects/blocks-studio/src/lib/core/registry/`
 
 ## Overview
 
 - **ComponentRegistry** – Register Angular component types (or loaders) by name; resolve by name with optional lazy loading.
+- **DirectiveRegistry** – Register Angular directive types (or loaders) by name; resolve by name with optional lazy loading. Used by the block loader for **host directives** (see [Block loader](block-loader.md#host-directives-and-inputsoutputs)).
 - **GuardRegistry** – Register route guards (or loaders) by name; resolve by name with optional lazy loading.
 - **ServiceRegistry** – Register Angular service types (or loaders) by name; resolve **instances** via the Angular injector, with optional lazy loading.
-- **RegistryMetadataStore** – Single source of truth for metadata for all registries; supports `getMetadata(key)` per registry and `getAllMetadata()` for components, services, and guards together.
+- **RegistryMetadataStore** – Single source of truth for metadata for all registries; supports `getMetadata(key)` per registry and `getAllMetadata()` for components, directives, services, and guards together.
 
-All four are singletons. Component, guard, and service registries delegate metadata to `RegistryMetadataStore`, so metadata is consistent and can be aggregated across registries.
+All five are singletons. Component, directive, guard, and service registries delegate metadata to `RegistryMetadataStore`, so metadata is consistent and can be aggregated across registries.
 
 ## Source layout
 
@@ -19,6 +20,7 @@ All four are singletons. Component, guard, and service registries delegate metad
 projects/blocks-studio/src/lib/core/registry/
 ├── index.ts                  # Public exports
 ├── component.registry.ts     # Component registry (types by name)
+├── directive.registry.ts     # Directive registry (types by name)
 ├── guard.registry.ts         # Guard registry (guards by name)
 ├── service.registry.ts       # Service registry (instances via injector)
 └── registry-metadata.ts      # Unified metadata store
@@ -26,15 +28,15 @@ projects/blocks-studio/src/lib/core/registry/
 
 ## Unified metadata
 
-Metadata is stored in **RegistryMetadataStore**, shared by all registries. When you register a component, guard, or service with metadata, it is stored there and tagged by type (`'component'`, `'guard'`, or `'service'`).
+Metadata is stored in **RegistryMetadataStore**, shared by all registries. When you register a component, directive, guard, or service with metadata, it is stored there and tagged by type (`'component'`, `'directive'`, `'guard'`, or `'service'`).
 
 ### Types
 
 | Type | Description |
 |------|-------------|
-| `RegistryEntryType` | `'component' \| 'service' \| 'guard'` |
+| `RegistryEntryType` | `'component' \| 'directive' \| 'service' \| 'guard'` |
 | `RegistryMetadataRecord` | `Record<string, unknown>` – free-form metadata per key |
-| `AllRegistryMetadata` | `{ components: Map<...>; services: Map<...>; guards: Map<...> }` |
+| `AllRegistryMetadata` | `{ components: Map<...>; directives: Map<...>; services: Map<...>; guards: Map<...> }` |
 
 ### RegistryMetadataStore API
 
@@ -44,8 +46,8 @@ Metadata is stored in **RegistryMetadataStore**, shared by all registries. When 
 | `set(key, type, data)` | Set metadata for a key (used by registries on register). |
 | `get(key)` | Get metadata for a key. |
 | `getMetadata(key)` | Alias for `get(key)`. |
-| `getByType(type)` | All metadata for `'component'`, `'service'`, or `'guard'`. |
-| `getAllMetadata()` | All metadata for all registries: `{ components, services, guards }`. |
+| `getByType(type)` | All metadata for `'component'`, `'directive'`, `'service'`, or `'guard'`. |
+| `getAllMetadata()` | All metadata for all registries: `{ components, directives, services, guards }`. |
 | `has(key)` | Whether metadata exists for the key. |
 | `remove(key)` | Remove metadata for a key (used by registries on unregister). |
 | `clear()` | Remove all metadata. |
@@ -61,6 +63,7 @@ const store = RegistryMetadataStore.getInstance();
 const all = store.getAllMetadata();
 
 // all.components: Map<string, RegistryMetadataRecord>
+// all.directives: Map<string, RegistryMetadataRecord>
 // all.services: Map<string, RegistryMetadataRecord>
 // all.guards: Map<string, RegistryMetadataRecord>
 ```
@@ -112,6 +115,37 @@ registry.register('my-block', MyBlockComponent, { category: 'layout', version: 1
 // Resolve
 const type = await registry.get('my-block');
 const meta = registry.getMetadata('my-block');
+```
+
+---
+
+## DirectiveRegistry
+
+Registers Angular **directive types** (or loader functions) by name. Used by the block loader when a block description includes `directives`: those directive types are applied as host directives on the dynamically created component, and the same flat `inputs`/`outputs` are resolved and set on the component and/or those directives (see [Block loader – Host directives](block-loader.md#host-directives-and-inputsoutputs)).
+
+### API
+
+| Method | Description |
+|--------|-------------|
+| `getInstance()` | Get the singleton instance. |
+| `register(name, directive, metadata?)` | Register a directive type or a `() => Promise<Type<unknown>>` loader. Optional metadata is stored in the shared metadata store. |
+| `get(name)` | Resolve directive type by name (async; runs loader if needed). Returns `Promise<Type<unknown> \| undefined>`. |
+| `getSync(name)` | Resolve directive type synchronously. Returns `undefined` if the entry is a lazy loader. |
+| `has(name)` | Whether a directive is registered for that name. |
+| `getAll()` | Copy of the map of loaded directive types (`Map<string, Type<unknown>>`). |
+| `getMetadata(key)` | Get metadata for the directive key from the shared store. |
+| `getAllWithMetadata()` | Map of name → `{ directive, metadata? }` for all loaded directives. |
+| `unregister(name)` | Remove the directive and its metadata. |
+| `clear()` | Remove all directives and their metadata. |
+
+### Example
+
+```typescript
+import { DirectiveRegistry } from 'ngx-blocks-studio';
+
+const registry = DirectiveRegistry.getInstance();
+registry.register('my-directive', MyDirective, { description: 'Host directive for blocks' });
+const type = await registry.get('my-directive');
 ```
 
 ---
