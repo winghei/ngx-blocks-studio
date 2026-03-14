@@ -9,6 +9,7 @@
     "watch": "ng build blocks-studio --watch --configuration development",
     "pack:lib": "ng build blocks-studio && cd dist/blocks-studio && npm pack",
     "test": "ng test",
+    "test:block-directives": "vitest run --config tests/block-directives/vitest.config.ts",
     "publish:lib": "./scripts/publish-lib.sh",
     "publish:lib:dry": "./scripts/publish-lib.sh --dry-run"
   },
@@ -40,6 +41,7 @@
     "@angular/build": "^21.1.2",
     "@angular/cli": "^21.1.2",
     "@angular/compiler-cli": "^21.2.0",
+    "@angular/platform-browser-dynamic": "^21.2.0",
     "jsdom": "^27.1.0",
     "ng-packagr": "^21.1.0",
     "typescript": "~5.9.2",
