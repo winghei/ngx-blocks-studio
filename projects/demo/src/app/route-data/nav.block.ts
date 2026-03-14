@@ -1,22 +1,18 @@
-/**
- * Nav block: RowLayout with a single row containing an HtmlBlock (no new component).
- * Use navRow as the first row on every page so the header nav is shown.
- * Skin classes (e.g. .app-nav) live in app/skin/.
- */
-const NAV_HTML = `
-<nav class="app-nav">
-  <a href="/">Person info</a>
-  <a href="/login">Login</a>
-  <a href="/dashboard">Dashboard</a>
-</nav>
-`.trim();
-
 /** Single row to prepend to any page's rows so the header nav is rendered. */
 const navRow = {
   columns: [
     {
-      component: 'HtmlBlock',
-      inputs: { html: NAV_HTML },
+      component: 'BlockFor',
+      inputs: {
+        class: ['app-nav'],
+        items: ['home', 'docs', 'person', 'login', 'dashboard', 'examples'].map((path) => ({
+          id: path,
+          path: `/${path}`,
+          label: path,
+        })),
+        block: { component: 'LinkBlock', inputs: { label: '{{label}}', routerLink: '{{path}}' } },
+        trackBy: 'id',
+      },
     },
   ],
 };

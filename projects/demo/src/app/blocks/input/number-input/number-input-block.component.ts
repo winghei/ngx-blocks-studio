@@ -17,8 +17,7 @@ import { FormsModule } from '@angular/forms';
 })
 export class NumberInputBlockComponent {
   readonly label = input<string>('');
-  readonly value = input<number>(0);
-  readonly valueChange = output<number>();
+  readonly value = model<number>(0);
   readonly min = input<number | undefined>(undefined);
   readonly max = input<number | undefined>(undefined);
 

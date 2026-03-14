@@ -1,5 +1,5 @@
 import { Injector, inject } from '@angular/core';
-import { ComponentRegistry, ServiceRegistry } from 'ngx-blocks-studio';
+import { ComponentRegistry, DirectiveRegistry, ServiceRegistry } from 'ngx-blocks-studio';
 import { FormStateService } from '../services/form-state.service';
 import { AuthStateService } from '../services/auth-state.service';
 import { DashboardStateService } from '../services/dashboard-state.service';
@@ -8,6 +8,7 @@ import { RowLayoutBlockComponent } from '../../blocks/layout/row-layout/row-layo
 import { SectionBlockComponent } from '../../blocks/layout/section/section-block.component';
 import { StringInputBlockComponent } from '../../blocks/input/string-input/string-input-block.component';
 import { NumberInputBlockComponent } from '../../blocks/input/number-input/number-input-block.component';
+import { MouseEventsDirective } from '../../directives/mouse-events.directive';
 
 /**
  * Registers demo blocks, FormState, AuthState, DashboardState, and BlockHost with blocks-studio registries.
@@ -27,6 +28,14 @@ export function registerDemoBlocks(injector?: Injector): void {
 
   ComponentRegistry.getInstance().register('BlockHost', BlockHostComponent);
   ComponentRegistry.getInstance().register('HtmlBlock', () =>
-    import('../../blocks/html-block/html-block').then((m) => m.HtmlBlock)
+    import('../../blocks/html-block/html-block').then((m) => m.HtmlBlock),
   );
+  ComponentRegistry.getInstance().register('LinkBlock', () =>
+    import('../../blocks/link-block/link-block.component').then((m) => m.LinkBlockComponent),
+  );
+  ComponentRegistry.getInstance().register('BlockFor', () =>
+    import('../../blocks/block-for.component').then((m) => m.BlockForComponent),
+  );
+
+  DirectiveRegistry.getInstance().register('MouseEvents', () => import('../../directives/mouse-events.directive').then((m) => m.MouseEventsDirective));
 }

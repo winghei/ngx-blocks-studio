@@ -101,7 +101,7 @@ export { personFormBlock };
 
 export const routes = [
   {
-    path: '',
+    path: 'person',
     component: 'BlockHost',
     title: 'Person info',
     data: {

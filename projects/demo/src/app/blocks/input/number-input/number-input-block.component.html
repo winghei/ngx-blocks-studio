@@ -5,8 +5,7 @@
   <input
     type="number"
     class="number-input-field"
-    [ngModel]="value()"
-    (ngModelChange)="valueChange.emit(parseNumber($event))"
+    [(ngModel)]="value"
     [min]="min() ?? null"
     [max]="max() ?? null"
   />

@@ -9,7 +9,6 @@ const dashboardBlock = {
     model: { note: '' },
     rows: [
       { columns: [{ blockId: 'AppNav' }] },
-      { columns: [{ blockId: 'AppNav' }] },
       {
         columns: [
           {

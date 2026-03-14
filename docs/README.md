@@ -6,17 +6,19 @@ Central documentation for **ngx-blocks-studio**. All module and API docs live he
 
 ```
 docs/
-├── README.md           # This index
-└── core/               # Core library documentation
-    ├── registry.md     # ComponentRegistry, DirectiveRegistry, GuardRegistry, ServiceRegistry, metadata
-    ├── block-loader.md # BlockDirective, description, instance refs, host directives, outputs as reference
-    └── router-loader.md # RouteLoader, RouteConfig, loading routes from JSON
+├── README.md                    # This index
+├── block-directive-use-cases.md # Use cases: bindings, services, directive I/O, block refs, outputs
+└── core/                        # Core library documentation
+    ├── registry.md              # ComponentRegistry, DirectiveRegistry, GuardRegistry, ServiceRegistry, metadata
+    ├── block-loader.md         # BlockDirective, description, instance refs, host directives, outputs as reference
+    └── router-loader.md        # RouteLoader, RouteConfig, loading routes from JSON
 ```
 
 ## Contents
 
 | Document | Description |
 |----------|-------------|
+| [Block-directive use cases](block-directive-use-cases.md) | Bindings (literal, `{{ }}`, `[( )]`), services (root/self), directive inputs/outputs, block references, output handlers; with demo references |
 | [Core → Registry](core/registry.md) | Component, directive, guard, and service registries, unified metadata store, lazy loading |
 | [Core → Block loader](core/block-loader.md) | BlockDirective, description (id, services, directives, inputs, outputs), instance refs, host directives and inputs/outputs validation, outputs as reference, registry |
 | [Core → Route loader](core/router-loader.md) | RouteLoader service, RouteConfig / RouteConfigFile, loading routes from JSON |

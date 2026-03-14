@@ -26,7 +26,17 @@ export class FormStateService {
   readonly lastName = signal<string>(defaultPerson.lastName);
   readonly email = signal<string>(defaultPerson.email);
   readonly age = signal<number>(defaultPerson.age);
-  readonly nestedSignal = signal({sub: {a: signal("SubSignal"), b: 2}});
+  readonly time = signal<string>(
+    new Date().toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }),
+  );
+  readonly nestedSignal = signal({ sub: { a: signal('SubSignal'), b: 2 } });
 
   readonly model = computed<PersonModel>(() => ({
     firstName: this.firstName(),
@@ -36,7 +46,6 @@ export class FormStateService {
   }));
 
   setModel(model: Partial<PersonModel> | null): void {
-  
     if (model == null) {
       this.firstName.set(defaultPerson.firstName);
       this.lastName.set(defaultPerson.lastName);
@@ -51,13 +60,25 @@ export class FormStateService {
   }
 
   alert(message: string): void {
-   console.log(message);
+    console.log('FormState.alert', message);
   }
 
-  constructor(){
+  constructor() {
     interval(1000).subscribe(() => {
-      const newSubSignal = signal("SubSignal " + new Date().toISOString());
-      this.nestedSignal.set({sub: {a: newSubSignal, b: 2}});
+      const newSubSignal = signal('SubSignal ' + new Date().toISOString());
+      this.nestedSignal.set({ sub: { a: newSubSignal, b: 2 } });
+    });
+    interval(1000).subscribe(() => {
+      this.time.set(
+        new Date().toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        }),
+      );
     });
   }
 }

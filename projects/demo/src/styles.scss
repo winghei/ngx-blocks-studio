@@ -20,3 +20,27 @@ body {
   color: var(--text-primary);
   background: var(--background-color);
 }
+
+.app-nav {
+  display: flex;
+  gap: 1rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+
+pre {
+  white-space: pre;
+  word-break: normal;
+  overflow-x: auto;
+  padding: 1rem 1.5rem;
+  background: linear-gradient(90deg, #232526 0%, #414345 100%);
+  color: #fafafa;
+  border-radius: 0.5rem;
+  border: 1px solid #2c2c2c;
+  font-size: 0.95rem;
+  font-family: 'Fira Mono', 'Consolas', 'Monaco', monospace;
+  box-shadow: 0 2px 8px 0 rgba(0,0,0,0.10);
+  margin: 1.5rem 0;
+}
