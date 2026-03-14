@@ -13,39 +13,24 @@
 import { appNavBlock } from './nav.block';
 
 // ─── Block definitions (pages) ─────────────────────────────────────────────
-import { dashboardBlock, dashboardRoute } from './dashboard.block';
 import { docsBlock, docsRoute } from './docs/index.block';
-import { examplesBlock, examplesRoute } from './examples.block';
+import { examplesRoute } from './examples.block';
 import { homeRoute } from './home.block';
-import { loginBlock, loginRoute } from './login.block';
 import { personFormBlock, routes as personFormRoutes } from './person-form.block';
 
 /** All block definitions: blockId → definition (for registration and route data). */
 export const blockDefinitions = {
   AppNav: appNavBlock,
   PersonForm: personFormBlock,
-  LoginPage: loginBlock,
-  DashboardPage: dashboardBlock,
   DocsPage: docsBlock,
-  ExamplesPage: examplesBlock,
 } as const;
 
 /** All demo routes (path, component, data with block + blockDefinitions). */
-export const routes = [
-  homeRoute,
-  docsRoute,
-  ...personFormRoutes,
-  loginRoute,
-  dashboardRoute,
-  examplesRoute,
-];
+export const routes = [homeRoute, docsRoute, ...personFormRoutes, examplesRoute];
 
 // ─── Re-exports (for direct imports from route-data) ─────────────────────────
-export { dashboardBlock, dashboardRoute } from './dashboard.block';
 export { docsBlock, docsRoute } from './docs/index.block';
-export { examplesBlock, examplesRoute } from './examples.block';
+export { examplesRoute } from './examples.block';
 export { homeRoute } from './home.block';
-export { loginBlock, loginRoute } from './login.block';
 export { appNavBlock } from './nav.block';
 export { personFormBlock, routes as personFormRoutes } from './person-form.block';
-

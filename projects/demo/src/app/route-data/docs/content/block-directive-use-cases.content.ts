@@ -98,11 +98,11 @@ export const blockDirectiveUseCasesRows = [
                 html: `<pre class="p-2 bg-light border rounded" style="white-space: pre-wrap; word-break: break-all;"><code>{
   component: 'HtmlBlock',
   inputs: {
-    html: 'Displaying state from the DocsPage FormState:&lt;br/&gt;' +
-      '&lt;strong&gt;Current time:&lt;/strong&gt; &#123;&#123;DocsPage:FormState.time&#125;&#125;&lt;br/&gt;' +
-      '&lt;strong&gt;First name:&lt;/strong&gt; &#123;&#123;DocsPage:FormState.firstName&#125;&#125; &amp;middot; ' +
-      '&lt;strong&gt;Last name:&lt;/strong&gt; &#123;&#123;DocsPage:FormState.lastName&#125;&#125; &amp;middot; ' +
-      '&lt;strong&gt;Age:&lt;/strong&gt; &#123;&#123;DocsPage:FormState.age&#125;&#125;',
+    html: 'Displaying state from the ExamplePage FormState:&lt;br/&gt;' +
+      '&lt;strong&gt;Current time:&lt;/strong&gt; &#123;&#123;ExamplePage:FormState.time&#125;&#125;&lt;br/&gt;' +
+      '&lt;strong&gt;First name:&lt;/strong&gt; &#123;&#123;ExamplePage:FormState.firstName&#125;&#125; &amp;middot; ' +
+      '&lt;strong&gt;Last name:&lt;/strong&gt; &#123;&#123;ExamplePage:FormState.lastName&#125;&#125; &amp;middot; ' +
+      '&lt;strong&gt;Age:&lt;/strong&gt; &#123;&#123;ExamplePage:FormState.age&#125;&#125;',
   },
 }</code></pre>`,
               },
@@ -110,13 +110,13 @@ export const blockDirectiveUseCasesRows = [
             {
               component: 'HtmlBlock',
               inputs: {
-                html: '<p>Bound to DocsPage FormState — updates when state changes:</p>',
+                html: '<p>Bound to ExamplePage FormState — updates when state changes:</p>',
               },
             },
             {
               component: 'HtmlBlock',
               inputs: {
-                html: '<p>Displaying state from the DocsPage FormState:<br/><strong>Current time:</strong> {{DocsPage:FormState.time}}<br/><strong>First name:</strong> {{DocsPage:FormState.firstName}} · <strong>Last name:</strong> {{DocsPage:FormState.lastName}} · <strong>Age:</strong> {{DocsPage:FormState.age}}</p>',
+                html: '<p>Displaying state from the ExamplePage FormState:<br/><strong>Current time:</strong> {{ExamplePage:FormState.time}}<br/><strong>First name:</strong> {{ExamplePage:FormState.firstName}} · <strong>Last name:</strong> {{ExamplePage:FormState.lastName}} · <strong>Age:</strong> {{ExamplePage:FormState.age}}</p>',
               },
             },
           ],
@@ -134,7 +134,7 @@ export const blockDirectiveUseCasesRows = [
             {
               component: 'HtmlBlock',
               inputs: {
-                html: `<pre class="p-2 bg-light border rounded" style="white-space: pre-wrap; word-break: break-all;"><code>{<br/>  component: &#39;StringInput&#39;,<br/>  inputs: {<br/>    label: &#39;First name&#39;,<br/>    value: '&#91;&#40;DocsPage:FormState.firstName&#41;&#93;',<br/>    placeholder: &#39;First name&#39;,<br/>  },<br/>}</code></pre>`,
+                html: `<pre class="p-2 bg-light border rounded" style="white-space: pre-wrap; word-break: break-all;"><code>{<br/>  component: &#39;StringInput&#39;,<br/>  inputs: {<br/>    label: &#39;First name&#39;,<br/>    value: '&#91;&#40;ExamplePage:FormState.firstName&#41;&#93;',<br/>    placeholder: &#39;First name&#39;,<br/>  },<br/>}</code></pre>`,
               },
             },
             {
@@ -147,7 +147,7 @@ export const blockDirectiveUseCasesRows = [
               component: 'StringInput',
               inputs: {
                 label: 'First name',
-                value: '[(DocsPage:FormState.firstName)]',
+                value: '[(ExamplePage:FormState.firstName)]',
                 placeholder: 'First name',
               },
             },
@@ -155,7 +155,7 @@ export const blockDirectiveUseCasesRows = [
               component: 'StringInput',
               inputs: {
                 label: 'Last name',
-                value: '[(DocsPage:FormState.lastName)]',
+                value: '[(ExamplePage:FormState.lastName)]',
                 placeholder: 'Last name',
               },
             },
@@ -163,7 +163,7 @@ export const blockDirectiveUseCasesRows = [
               component: 'NumberInput',
               inputs: {
                 label: 'Age',
-                value: '[(DocsPage:FormState.age)]',
+                value: '[(ExamplePage:FormState.age)]',
                 min: 0,
                 max: 120,
               },
@@ -243,7 +243,7 @@ export const blockDirectiveUseCasesRows = [
             {
               component: 'HtmlBlock',
               inputs: {
-                html: '<pre class="p-2 bg-light border rounded" style="white-space: pre-wrap; word-break: break-all;"><code>{<br/>  component: \'HtmlBlock\',<br/>  directives: [\'MouseEvents\'],<br/>  inputs: {<br/>    html: \'&lt;b&gt;&lt;i&gt;Click ME and check the console&lt;/i&gt;&lt;/b&gt;\',<br/>  },<br/>  outputs: {<br/>    clicked: {<br/>      type: \'reference\',<br/>      reference: \'DocsPage:FormState\',<br/>      method: \'alert\',<br/>      params: [\'Alert from clicked event\'],<br/>    },<br/>  },<br/>}</code></pre>',
+                html: '<pre class="p-2 bg-light border rounded" style="white-space: pre-wrap; word-break: break-all;"><code>{<br/>  component: \'HtmlBlock\',<br/>  directives: [\'MouseEvents\'],<br/>  inputs: {<br/>    html: \'&lt;b&gt;&lt;i&gt;Click ME and check the console&lt;/i&gt;&lt;/b&gt;\',<br/>  },<br/>  outputs: {<br/>    clicked: {<br/>      type: \'reference\',<br/>      reference: \'ExamplePage:FormState\',<br/>      method: \'alert\',<br/>      params: [\'Alert from clicked event\'],<br/>    },<br/>  },<br/>}</code></pre>',
               },
             },
             {
@@ -255,7 +255,7 @@ export const blockDirectiveUseCasesRows = [
               outputs: {
                 clicked: {
                   type: 'reference',
-                  reference: 'DocsPage:FormState',
+                  reference: 'ExamplePage:FormState',
                   method: 'alert',
                   params: ['Alert from clicked event'],
                 },
@@ -366,21 +366,21 @@ export const blockDirectiveUseCasesRows = [
             {
               component: 'HtmlBlock',
               inputs: {
-                html: "<p>Change age; <code>value</code> calls <code>DocsPage:FormState.alert('Age changed')</code> (see console):</p>",
+                html: "<p>Change age; <code>value</code> calls <code>ExamplePage:FormState.alert('Age changed')</code> (see console):</p>",
               },
             },
             {
               component: 'NumberInput',
               inputs: {
                 label: 'Age (triggers alert on change)',
-                value: '[(DocsPage:FormState.age)]',
+                value: '[(ExamplePage:FormState.age)]',
                 min: 0,
                 max: 120,
               },
               outputs: {
                 value: {
                   type: 'reference' as const,
-                  reference: 'DocsPage:FormState',
+                  reference: 'ExamplePage:FormState',
                   method: 'alert',
                   params: ['Age changed'],
                 },
@@ -407,7 +407,7 @@ export const blockDirectiveUseCasesRows = [
             {
               component: 'HtmlBlock',
               inputs: {
-                html: '<p><strong>Live:</strong> <code>DocsPage:FormState.firstName</code> → {{DocsPage:FormState.firstName}} · <code>DocsPage:FormState.age</code> → {{DocsPage:FormState.age}}</p>',
+                html: '<p><strong>Live:</strong> <code>ExamplePage:FormState.firstName</code> → {{ExamplePage:FormState.firstName}} · <code>ExamplePage:FormState.age</code> → {{ExamplePage:FormState.age}}</p>',
               },
             },
           ],

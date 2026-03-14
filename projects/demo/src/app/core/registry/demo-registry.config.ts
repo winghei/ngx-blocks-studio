@@ -1,14 +1,12 @@
 import { Injector, inject } from '@angular/core';
 import { ComponentRegistry, DirectiveRegistry, ServiceRegistry } from 'ngx-blocks-studio';
-import { FormStateService } from '../services/form-state.service';
-import { AuthStateService } from '../services/auth-state.service';
-import { DashboardStateService } from '../services/dashboard-state.service';
 import { BlockHostComponent } from '../../blocks/block-host/block-host.component';
+import { NumberInputBlockComponent } from '../../blocks/input/number-input/number-input-block.component';
+import { StringInputBlockComponent } from '../../blocks/input/string-input/string-input-block.component';
 import { RowLayoutBlockComponent } from '../../blocks/layout/row-layout/row-layout-block.component';
 import { SectionBlockComponent } from '../../blocks/layout/section/section-block.component';
-import { StringInputBlockComponent } from '../../blocks/input/string-input/string-input-block.component';
-import { NumberInputBlockComponent } from '../../blocks/input/number-input/number-input-block.component';
 import { MouseEventsDirective } from '../../directives/mouse-events.directive';
+import { FormStateService } from '../services/form-state.service';
 
 /**
  * Registers demo blocks, FormState, AuthState, DashboardState, and BlockHost with blocks-studio registries.
@@ -18,8 +16,6 @@ export function registerDemoBlocks(injector?: Injector): void {
   ServiceRegistry.getInstance().setInjector(injector ?? inject(Injector));
 
   ServiceRegistry.getInstance().register('FormState', FormStateService);
-  ServiceRegistry.getInstance().register('AuthState', AuthStateService);
-  ServiceRegistry.getInstance().register('DashboardState', DashboardStateService);
 
   ComponentRegistry.getInstance().register('RowLayout', RowLayoutBlockComponent);
   ComponentRegistry.getInstance().register('Section', SectionBlockComponent);
@@ -37,5 +33,5 @@ export function registerDemoBlocks(injector?: Injector): void {
     import('../../blocks/block-for.component').then((m) => m.BlockForComponent),
   );
 
-  DirectiveRegistry.getInstance().register('MouseEvents', () => import('../../directives/mouse-events.directive').then((m) => m.MouseEventsDirective));
+  DirectiveRegistry.getInstance().register('MouseEvents', MouseEventsDirective);
 }

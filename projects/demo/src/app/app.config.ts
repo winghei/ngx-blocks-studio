@@ -45,7 +45,7 @@ export const appConfig: ApplicationConfig = {
       registerBlockDefinitions();
       return routeLoader.loadRoutes({
         routes,
-        defaultRedirect: '',
+        defaultRedirect: '/home',
         catchAllRedirect: '',
       });
     }),

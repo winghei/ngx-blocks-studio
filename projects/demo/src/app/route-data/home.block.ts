@@ -29,21 +29,10 @@ const homeBlock = {
                   component: 'LinkBlock',
                   inputs: { label: 'Documentation', routerLink: '/docs' },
                 },
-                {
-                  component: 'LinkBlock',
-                  inputs: { label: 'Dashboard', routerLink: '/dashboard' },
-                },
+
                 {
                   component: 'LinkBlock',
                   inputs: { label: 'Block examples', routerLink: '/examples' },
-                },
-                {
-                  component: 'LinkBlock',
-                  inputs: { label: 'Person form', routerLink: '/person' },
-                },
-                {
-                  component: 'LinkBlock',
-                  inputs: { label: 'Login', routerLink: '/login' },
                 },
               ],
             },

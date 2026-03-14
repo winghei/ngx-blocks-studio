@@ -5,7 +5,7 @@ const navRow = {
       component: 'BlockFor',
       inputs: {
         class: ['app-nav'],
-        items: ['home', 'docs', 'person', 'login', 'dashboard', 'examples'].map((path) => ({
+        items: ['home', 'docs', 'examples'].map((path) => ({
           id: path,
           path: `/${path}`,
           label: path,

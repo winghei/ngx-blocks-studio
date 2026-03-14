@@ -122,6 +122,14 @@ export class DirectiveRegistry {
   }
 
   private isLoader(value: DirectiveOrLoader): value is DirectiveLoader {
-    return typeof value === 'function' && (value as DirectiveLoader).length === 0;
+    if (typeof value !== 'function') {
+      return false;
+    }
+    // Class constructors have prototype.constructor === themselves; loader functions (e.g. arrow)
+    // do not, so we treat only non-class functions with 0 args as loaders.
+    const looksLikeClass =
+      typeof (value as Type<unknown>).prototype !== 'undefined' &&
+      (value as Type<unknown>).prototype?.constructor === value;
+    return (value as DirectiveLoader).length === 0 && !looksLikeClass;
   }
 }
