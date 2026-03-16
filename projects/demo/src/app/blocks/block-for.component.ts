@@ -26,12 +26,13 @@ export class BlockForComponent {
   readonly items = model<any[]>([]);
   readonly trackBy = input<string | undefined>(undefined);
   readonly trackByIdx = input<boolean>(false);
-
   readonly block = input.required<{ component: string; inputs?: Record<string, unknown> }>();
   readonly blockDefinitions = input<Record<string, unknown>>({});
   readonly class = input<string[]>([]);
   readonly style = input<Record<string, unknown>>({});
-  readonly registry = input<BlockRegistry | null>(this.blockRegistry.registry as unknown as BlockRegistry | null);
+  readonly registry = input<BlockRegistry | null>(
+    this.blockRegistry.registry as unknown as BlockRegistry | null,
+  );
   trackByFn(idx: number, item: unknown) {
     if (this.trackByIdx()) {
       return idx;

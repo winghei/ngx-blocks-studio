@@ -1,5 +1,10 @@
 import { Injector, inject } from '@angular/core';
-import { ComponentRegistry, DirectiveRegistry, ServiceRegistry } from 'ngx-blocks-studio';
+import {
+  BlockDirective,
+  ComponentRegistry,
+  DirectiveRegistry,
+  ServiceRegistry,
+} from 'ngx-blocks-studio';
 import { BlockHostComponent } from '../../blocks/block-host/block-host.component';
 import { NumberInputBlockComponent } from '../../blocks/input/number-input/number-input-block.component';
 import { StringInputBlockComponent } from '../../blocks/input/string-input/string-input-block.component';
@@ -34,4 +39,5 @@ export function registerDemoBlocks(injector?: Injector): void {
   );
 
   DirectiveRegistry.getInstance().register('MouseEvents', MouseEventsDirective);
+  DirectiveRegistry.getInstance().register('Block', BlockDirective);
 }

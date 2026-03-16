@@ -128,6 +128,7 @@ export const blockDirectiveUseCasesRows = [
     columns: [
       {
         component: 'Section',
+
         inputs: {
           title: 'Example: two-way refs <code>&#91;&#40; &#41;&#93;</code>',
           children: [
@@ -145,6 +146,7 @@ export const blockDirectiveUseCasesRows = [
             },
             {
               component: 'StringInput',
+
               inputs: {
                 label: 'First name',
                 value: '[(ExamplePage:FormState.firstName)]',
@@ -153,6 +155,7 @@ export const blockDirectiveUseCasesRows = [
             },
             {
               component: 'StringInput',
+
               inputs: {
                 label: 'Last name',
                 value: '[(ExamplePage:FormState.lastName)]',
@@ -178,24 +181,33 @@ export const blockDirectiveUseCasesRows = [
       {
         component: 'Section',
         inputs: {
-          title: '2. Services',
+          title: '2. Services and scope',
           children: [
             {
               component: 'HtmlBlock',
               inputs: {
-                html: "<h4>2.1 Root-scoped services</h4><p><strong>Description:</strong> <code>services: ['ServiceId']</code> or <code>services: [{ id: 'ServiceId', alias?: 'Alias' }]</code> (no <code>scope</code>). Resolved from the <strong>root injector</strong>. One instance per app. Refs like <code>BlockID:FormState.firstName</code> resolve.</p><p><strong>Use case:</strong> Shared app-wide state (e.g. auth, theme). Person form uses root <code>FormState</code> when not using <code>scope: 'self'</code>.</p><p><strong>Demo:</strong> Person form uses <code>services: [{ id: 'FormState' }]</code> (root).</p>",
+                html: "<h4>2.1 Root-scoped services</h4><p><strong>Description:</strong> <code>services: ['ServiceId']</code> or <code>services: [{ id: 'ServiceId', alias?: 'Alias' }]</code> (no <code>scope</code>). These are resolved from the <strong>Angular injector</strong> (for example services with <code>providedIn: 'root'</code>) using <code>viewContainerRef.injector.get(...)</code>. If Angular returns an instance, that instance is used and no self-scoped instance is created for that id. One instance per app.</p><p><strong>Use case:</strong> Shared app-wide state (e.g. auth, theme).</p><p><strong>Demo:</strong>  Blocks that use <code>services: [{ id: 'FormState' }]</code> rely on the root FormState service registered in <code>ServiceRegistry</code> and Angular DI.</p>",
               },
             },
             {
               component: 'HtmlBlock',
               inputs: {
-                html: "<h4>2.2 Self-scoped services</h4><p><strong>Description:</strong> <code>services: [{ id: 'ServiceId', scope: 'self', alias?: 'Alias' }]</code>. A <strong>new instance</strong> is created per block via a child injector. Refs like <code>BlockID:ServiceId.prop</code> target this block's instance only.</p><p><strong>Use case:</strong> Per-page or per-form state (e.g. login has its own <code>AuthState</code>, dashboard its own <code>DashboardState</code>).</p><p><strong>Demo:</strong> Login: <code>services: [{ id: 'AuthState', scope: 'self' }]</code>. Dashboard: <code>services: [{ id: 'DashboardState', scope: 'self' }]</code>.</p>",
+                html: '<b>FirstName (root-scoped)</b>: {{FormState.firstName}}',
+              },
+              services: [{ id: 'FormState' }],
+            },
+            {
+              component: 'StringInput',
+              services: [{ id: 'FormState' }],
+              inputs: {
+                label: 'First name',
+                value: '[(FormState.firstName)]',
               },
             },
             {
               component: 'HtmlBlock',
               inputs: {
-                html: "<h4>2.3 Model and setModel</h4><p><strong>Description:</strong> The block's <strong>model</strong> comes from the directive's <code>[model]</code> input or the <code>model</code> argument to <code>load()</code>. The loader sets <code>blockInstance['model']</code> and calls <code>setModel(model)</code> on every service that has that method (e.g. FormState, AuthState). If <code>[model]</code> is a <strong>ref path string</strong>, the loader binds to that ref's signal so model stays reactive.</p><p><strong>Use case:</strong> Passing route data or initial form data into state services.</p><p><strong>Demo:</strong> Route data passes <code>model: { firstName: 'Jane', ... }</code>; BlockHost passes it to the directive; FormState receives it via <code>setModel</code>.</p>",
+                html: "<h4>2.2 Self-scoped services</h4><p><strong>Description:</strong> <code>services: [{ id: 'ServiceId', scope: 'self', alias?: 'Alias' }]</code>. The block loader asks the <strong>ServiceRegistry</strong> for the service type and builds a <strong>child injector</strong> that provides that type. A new instance is then resolved from that child injector (<code>selfInjector.get(..., { self: true })</code>), so you get one instance per block instance. Refs like <code>BlockID:ServiceId.prop</code> target this block's instance only.</p><p><strong>Use case:</strong> Per-page or per-form state (e.g. each page gets its own FormState). It can be referenced as e.g. <code>ExamplePage:FormState.firstName</code>.</p><p><strong>Note:</strong> Self-scoped instances do not automatically override root-scoped services; scope is determined by each block's <code>services</code> configuration.</p>",
               },
             },
           ],
@@ -213,7 +225,7 @@ export const blockDirectiveUseCasesRows = [
             {
               component: 'HtmlBlock',
               inputs: {
-                html: "<p>This page block has <code>services: [{ id: 'FormState', scope: 'self' }]</code> and the route passes <code>model: { firstName: 'John', lastName: 'Doe', age: 30 }</code>. The read-only and two-way examples above use that same FormState; initial values come from <code>setModel</code>.</p>",
+                html: "<p>This page block has <code>services: [{ id: 'FormState', scope: 'self' }]</code> and the route passes <code>model: { firstName: 'Demo', lastName: 'User', age: 25 }</code>. The block loader attaches the self-scoped FormState instance to the block instance and, when it finds a <code>model</code> signal on the service, wires it to the resolved model signal so reads and writes stay in sync. The read-only and two-way examples above use that same FormState; initial values come from the route model.</p>",
               },
             },
           ],
@@ -243,14 +255,20 @@ export const blockDirectiveUseCasesRows = [
             {
               component: 'HtmlBlock',
               inputs: {
-                html: '<pre class="p-2 bg-light border rounded" style="white-space: pre-wrap; word-break: break-all;"><code>{<br/>  component: \'HtmlBlock\',<br/>  directives: [\'MouseEvents\'],<br/>  inputs: {<br/>    html: \'&lt;b&gt;&lt;i&gt;Click ME and check the console&lt;/i&gt;&lt;/b&gt;\',<br/>  },<br/>  outputs: {<br/>    clicked: {<br/>      type: \'reference\',<br/>      reference: \'ExamplePage:FormState\',<br/>      method: \'alert\',<br/>      params: [\'Alert from clicked event\'],<br/>    },<br/>  },<br/>}</code></pre>',
+                html: `<pre class="p-2 bg-light border rounded" style="white-space: pre-wrap; word-break: break-all;"><code>{<br/>  component: 'HtmlBlock',<br/>  directives: ['MouseEvents','Block'],<br/>  inputs: {<br/>    html: '&lt;b&gt;&lt;i&gt;Click ME and check the console&lt;/i&gt;&lt;/b&gt;',<br/>    description: {<br/>      component: 'HtmlBlock',<br/>      inputs: {<br/>        html: 'This is nested HTMLBlock as extended input from the Block directive',<br/>      },<br/>    },<br/>  },<br/>  outputs: {<br/>    clicked: {<br/>      type: 'reference',<br/>      reference: 'ExamplePage:FormState',<br/>      method: 'alert',<br/>      params: ['Alert from clicked event'],<br/>    },<br/>  },<br/>}</code></pre>`,
               },
             },
             {
               component: 'HtmlBlock',
-              directives: ['MouseEvents'],
+              directives: ['MouseEvents', 'Block'],
               inputs: {
-                html: '<b><i>Click ME and check the console</i></b>',
+                html: '<b>I am an HTML block with a MouseEvents and Blockdirective</b>',
+                description: {
+                  component: 'HtmlBlock',
+                  inputs: {
+                    html: 'This is nested HTMLBlock as extended input from the Block directive',
+                  },
+                },
               },
               outputs: {
                 clicked: {
@@ -378,7 +396,7 @@ export const blockDirectiveUseCasesRows = [
                 max: 120,
               },
               outputs: {
-                value: {
+                valueChange: {
                   type: 'reference' as const,
                   reference: 'ExamplePage:FormState',
                   method: 'alert',

@@ -1,4 +1,4 @@
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, linkedSignal } from '@angular/core';
 import { interval } from 'rxjs';
 
 export interface PersonModel {
@@ -20,12 +20,14 @@ const defaultPerson: PersonModel = {
  * Exposed as FormState on the block instance for ref resolution and two-way binding.
  * Register with ServiceRegistry as 'FormState' and use scope: 'self' per form.
  */
+
 @Injectable({ providedIn: 'root' })
 export class FormStateService {
-  readonly firstName = signal<string>(defaultPerson.firstName);
-  readonly lastName = signal<string>(defaultPerson.lastName);
-  readonly email = signal<string>(defaultPerson.email);
-  readonly age = signal<number>(defaultPerson.age);
+  model = signal<PersonModel | null>({firstName: 'John', lastName: 'Doe', email: 'john.doe@example.com', age: 30});
+  readonly firstName = linkedSignal(()=> this.model()?.firstName);
+  readonly lastName = linkedSignal(()=> this.model()?.lastName);
+  readonly email = linkedSignal(()=> this.model()?.email);
+  readonly age = linkedSignal(()=> this.model()?.age);
   readonly time = signal<string>(
     new Date().toLocaleDateString('en-US', {
       year: 'numeric',
@@ -36,14 +38,8 @@ export class FormStateService {
       second: '2-digit',
     }),
   );
+  
   readonly nestedSignal = signal({ sub: { a: signal('SubSignal'), b: 2 } });
-
-  readonly model = computed<PersonModel>(() => ({
-    firstName: this.firstName(),
-    lastName: this.lastName(),
-    email: this.email(),
-    age: this.age(),
-  }));
 
   setModel(model: Partial<PersonModel> | null): void {
     if (model == null) {

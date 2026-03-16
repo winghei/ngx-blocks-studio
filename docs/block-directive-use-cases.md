@@ -21,9 +21,9 @@ Files: `route-data/person-form.block.ts`, `route-data/login.block.ts`, `route-da
 
 ### 1.2 Read-only refs: `{{ refPath }}`
 
-**Description:** A string containing `{{ refPath }}` is interpolated: each placeholder is replaced with the value at that path. Ref path is either **current block** (`serviceOrModel.path`, e.g. `FormState.firstName`) or **named block** (`BlockID:serviceOrModel.path`, e.g. `PersonForm:FormState.firstName`). An effect keeps the value in sync when refs (e.g. signals) change.
+**Description:** A string containing `{{ refPath }}` is interpolated: each placeholder is replaced with the value at that path. Ref path is either **current block** (`serviceOrModel.path` or `model.path`, e.g. `FormState.firstName`, `model.age`) or **named block** (`BlockID:serviceOrModel.path`, e.g. `PersonForm:FormState.firstName`). If the ref does not resolve to a service/model instance, the loader falls back to reading from the block’s `model` value by dot path. A computed signal keeps the value in sync when refs (e.g. signals) change.
 
-**Use case:** Display state from a service or another block without two-way binding.
+**Use case:** Display state from a service, the current block model, or another block without two-way binding.
 
 **Demo:** Person form `HtmlBlock` shows `{{PersonForm:FormState.nestedSignal.sub.a}}`, `{{PersonForm:FormState.lastName}}`, `{{age}}`. Dashboard shows `{{DashboardPage:DashboardState.note}}`.  
 Files: `route-data/person-form.block.ts`, `route-data/dashboard.block.ts`.
@@ -32,7 +32,7 @@ Files: `route-data/person-form.block.ts`, `route-data/dashboard.block.ts`.
 
 ### 1.3 Two-way refs: `[( refPath )]`
 
-**Description:** The **entire** input value must be exactly `"[(refPath)]"`. The loader (1) sets the initial value from the ref, (2) syncs ref → component when the ref changes, (3) syncs component → ref when the component’s signal/input changes. No mixing with literals or `{{ }}`.
+**Description:** The **entire** input value must be exactly `"[(refPath)]"`. The loader (1) sets the initial value from the ref, (2) syncs ref → component when the ref’s signal changes, (3) syncs component → ref when the component’s **writable signal/input** changes. No mixing with literals or `{{ }}`. If the target ref is not a writable signal, the loader logs a warning and degrades to one-way (read-only) input for that key.
 
 **Use case:** Form controls bound to a shared state service (e.g. `StringInput`/`NumberInput` value bound to `FormState.firstName`, `FormState.age`).
 
@@ -45,11 +45,11 @@ Files: `route-data/person-form.block.ts`, `route-data/login.block.ts`, `route-da
 
 ### 2.1 Root-scoped services
 
-**Description:** `services: ['ServiceId']` or `services: [{ id: 'ServiceId', alias?: 'Alias' }]` (no `scope`). Resolved from the **root injector** (e.g. the one used when the directive runs). One instance per app (or per injector tree). The block’s **instance** gets that service by id/alias so refs like `BlockID:FormState.firstName` resolve.
+**Description:** `services: ['ServiceId']` or `services: [{ id: 'ServiceId', alias?: 'Alias' }]` (no `scope`). Resolved from the **root injector** (e.g. the one used when the directive runs). If Angular returns an instance, that instance is used and no self-scoped instance is created for that id. If Angular does **not** provide a service for that id, the loader automatically falls back to creating a self-scoped instance for that id. One root instance per app (or per injector tree), plus additional self instances per block when needed.
 
-**Use case:** Shared app-wide state (e.g. auth, theme). Person form uses root `FormState` so the same instance is used when not using `scope: 'self'`.
+**Use case:** Shared app-wide state (e.g. auth, theme). Person form uses root `FormState` so the same instance is used when provided by DI, otherwise a self-scoped instance is created.
 
-**Demo:** Person form uses `services: [{ id: 'FormState' }]` (root).  
+**Demo:** Person form uses `services: [{ id: 'FormState' }]` (root-first, then self fallback).  
 File: `route-data/person-form.block.ts`.
 
 ---
