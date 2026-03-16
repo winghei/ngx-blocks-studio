@@ -1,5 +1,13 @@
-import { Directive, input, effect, ViewContainerRef, inject, DestroyRef } from '@angular/core';
-import { BlockLoaderService, type BlockLoadResult } from './block-loader.service';
+import {
+  Directive,
+  input,
+  effect,
+  ViewContainerRef,
+  inject,
+  DestroyRef,
+  type ComponentRef,
+} from '@angular/core';
+import { BlockLoaderService } from './block-loader.service';
 import type { BlockRegistry } from './block-registry';
 import type { BlockDescription, BlockInput } from './block-description.schema';
 import {
@@ -43,7 +51,9 @@ export class BlockDirective {
   /** Model for the block. */
   readonly model = input<Record<string, unknown> | string | undefined>(undefined);
 
-  private loadResult: BlockLoadResult | null = null;
+  private loadResult: ComponentRef<unknown> | null = null;
+  private lastRegistry: BlockRegistry | null = null;
+  private lastId: string | null = null;
   private loadedComponent: string | null = null;
   private loadedServicesKey: string | null = null;
   private loadGeneration = 0;
@@ -81,15 +91,6 @@ export class BlockDirective {
         data = parsed.data;
       }
       const servicesKey = getServicesKey(data.services);
-      const canUpdate =
-        this.loadResult != null &&
-        this.loadedComponent === data.component &&
-        this.loadedServicesKey === servicesKey;
-
-      if (canUpdate && this.loadResult) {
-        this.loadResult.updateInputs(resolved);
-        return;
-      }
 
       // Only clear when the logical description changed (component or services). Avoids
       // clear+reload when the parent passes a new reference with the same content (e.g. BlockFor).
@@ -97,10 +98,16 @@ export class BlockDirective {
         this.loadResult == null ||
         this.loadedComponent !== data.component ||
         this.loadedServicesKey !== servicesKey;
-      if (mustReload) {
-        this.clear();
+      if (!mustReload) {
+        // Description is logically unchanged (same component + services); no work needed.
+        return;
       }
+
+      this.clear();
       const registry = this.blockRegistry() ?? undefined;
+      this.lastRegistry = registry ?? null;
+      this.lastId = data.id ?? null;
+
       const generation = ++this.loadGeneration;
       this.loader
         .load(resolved, this.viewContainerRef, this.model, {
@@ -119,6 +126,7 @@ export class BlockDirective {
           console.error('Block load failed:', err);
         });
     });
+
     this.destroyRef.onDestroy(() => this.clear());
   }
 
@@ -126,8 +134,12 @@ export class BlockDirective {
     this.loadGeneration++;
     this.lastDescRef = null;
     this.lastParsedData = null;
+    if (this.lastId != null) {
+      this.lastRegistry?.unregister(this.lastId);
+      this.lastId = null;
+    }
     if (this.loadResult) {
-      this.loadResult.destroy();
+      this.viewContainerRef.clear();
       this.loadResult = null;
       this.loadedComponent = null;
       this.loadedServicesKey = null;

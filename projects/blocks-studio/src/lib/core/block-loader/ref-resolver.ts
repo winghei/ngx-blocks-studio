@@ -34,12 +34,15 @@ export function resolveRefPath(
     if (!handle) return null;
     instance = handle.instance;
   } else {
+    
     instance = ctx.currentInstance ?? undefined;
   }
+  
   if (instance == null) return null;
 
 
   const service = instance[serviceOrModel];
+
   if (!service) return null;
   if (pathParts.length === 0) {
     return { target: service, path: [] };
