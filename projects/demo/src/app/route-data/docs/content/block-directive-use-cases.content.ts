@@ -275,7 +275,7 @@ export const blockDirectiveUseCasesRows = [
                   type: 'reference',
                   reference: 'ExamplePage:FormState',
                   method: 'alert',
-                  params: ['Alert from clicked event'],
+                  params: ['This a resolved name {{ref("ExamplePage:FormState.firstName") + " " + ref("ExamplePage:FormState.lastName")}} from clicked event'],
                 },
               },
             },
