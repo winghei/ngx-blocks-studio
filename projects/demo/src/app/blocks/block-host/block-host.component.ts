@@ -6,7 +6,7 @@ import {
 } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { BlockDirective } from 'ngx-blocks-studio';
+import { BlockDirective, type BlockDefinitionOrLoader } from 'ngx-blocks-studio';
 import { BlockRegistryService } from '../../core/services/block-registry.service';
 import type { BlockRegistry } from 'ngx-blocks-studio';
 import { CommonModule } from '@angular/common';
@@ -29,7 +29,9 @@ export class BlockHostComponent {
 
   readonly blockDescription = computed(() => this.routeData()['block'] ?? null);
   readonly blockDefinitions = computed(
-    () => (this.routeData()['blockDefinitions'] as Record<string, unknown> | undefined) ?? null
+    () =>
+      (this.routeData()['blockDefinitions'] as Record<string, BlockDefinitionOrLoader> | undefined) ??
+      null,
   );
   readonly model = computed(() => this.routeData()['model'] ?? undefined);
   getRegistry(): BlockRegistry {

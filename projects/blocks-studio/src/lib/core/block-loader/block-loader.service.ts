@@ -26,6 +26,7 @@ import {
   type BlockReference,
   type ServiceEntry,
 } from './block-description.schema';
+import type { BlockDefinitionOrLoader } from '../registry/block-definitions.registry';
 import {
   BlockRegistryImpl,
   CurrentInstance,
@@ -37,8 +38,8 @@ import { ResolverContext, getRefSignal } from './ref-resolver';
 export interface BlockLoadOptions {
   outputHandlers?: Record<string, (value: unknown) => void>;
   registry?: BlockRegistry;
-  /** Map of block id → full description; used when description is an id-only reference. */
-  blockDefinitions?: Record<string, unknown>;
+  /** Map of block id → full description or loader; used when description is a block reference. */
+  blockDefinitions?: Record<string, BlockDefinitionOrLoader>;
 }
 
 export const INTERPOLATE_MAX_PLACEHOLDERS = 200;
@@ -97,7 +98,7 @@ export class BlockLoaderService {
   ): Promise<ComponentRef<unknown>> {
     let resolved: unknown = description;
     if (isBlockReference(description)) {
-      resolved = resolveBlockReference(description, options?.blockDefinitions);
+      resolved = await resolveBlockReference(description, options?.blockDefinitions);
     }
     const parsed = safeParseBlockDescription(resolved);
 

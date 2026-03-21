@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Component, ViewChild, ViewContainerRef, signal, Input } from '@angular/core';
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BlockLoaderService } from '../../projects/blocks-studio/src/lib/core/block-loader/block-loader.service';
 import { ComponentRegistry } from '../../projects/blocks-studio/src/lib/core/registry/component.registry';
 import { DirectiveRegistry } from '../../projects/blocks-studio/src/lib/core/registry/directive.registry';
@@ -21,6 +21,7 @@ class TestBlockComponent {
 
 describe('BlockLoaderService', () => {
   let loader: BlockLoaderService;
+  let fixture: ComponentFixture<HostComponent>;
   let vcr: ViewContainerRef;
   let componentRegistry: ComponentRegistry;
   let directiveRegistry: DirectiveRegistry;
@@ -32,7 +33,7 @@ describe('BlockLoaderService', () => {
     }).compileComponents();
 
     loader = TestBed.inject(BlockLoaderService);
-    const fixture = TestBed.createComponent(HostComponent);
+    fixture = TestBed.createComponent(HostComponent);
     fixture.detectChanges();
     vcr = fixture.componentInstance.vcr;
 
@@ -48,7 +49,7 @@ describe('BlockLoaderService', () => {
   });
 
   describe('load', () => {
-    it('loads a minimal description and returns componentRef, destroy, updateInputs', async () => {
+    it('loads a minimal description and returns a ComponentRef', async () => {
       const model = signal(undefined);
       const result = await loader.load(
         { component: 'TestBlock' },
@@ -56,11 +57,9 @@ describe('BlockLoaderService', () => {
         model,
       );
 
-      expect(result.componentRef).toBeDefined();
-      expect(result.componentRef.instance).toBeInstanceOf(TestBlockComponent);
+      expect(result).toBeDefined();
+      expect(result.instance).toBeInstanceOf(TestBlockComponent);
       expect(typeof result.destroy).toBe('function');
-      expect(typeof result.updateInputs).toBe('function');
-
       result.destroy();
     });
 
@@ -74,8 +73,9 @@ describe('BlockLoaderService', () => {
         vcr,
         model,
       );
+      fixture.detectChanges();
 
-      const comp = result.componentRef.instance as TestBlockComponent;
+      const comp = result.instance as TestBlockComponent;
       expect(comp.title).toBe('Hello');
       expect(comp.count).toBe(42);
 
@@ -108,29 +108,22 @@ describe('BlockLoaderService', () => {
       ).rejects.toThrow('already registered');
     });
 
-    it('updateInputs re-applies inputs from new description', async () => {
+    it('applies initial inputs from description', async () => {
       const model = signal(undefined);
       const result = await loader.load(
         {
           component: 'TestBlock',
           id: 'Upd',
-          inputs: { title: 'First' },
+          inputs: { title: 'First', count: 5 },
         },
         vcr,
         model,
       );
+      fixture.detectChanges();
 
-      const comp = result.componentRef.instance as TestBlockComponent;
+      const comp = result.instance as TestBlockComponent;
       expect(comp.title).toBe('First');
-
-      result.updateInputs({
-        component: 'TestBlock',
-        id: 'Upd',
-        inputs: { title: 'Second', count: 10 },
-      });
-
-      expect(comp.title).toBe('Second');
-      expect(comp.count).toBe(10);
+      expect(comp.count).toBe(5);
 
       result.destroy();
     });
@@ -153,8 +146,9 @@ describe('BlockLoaderService', () => {
         model,
         { blockDefinitions: defs },
       );
+      fixture.detectChanges();
 
-      const comp = result.componentRef.instance as TestBlockComponent;
+      const comp = result.instance as TestBlockComponent;
       expect(comp.title).toBe('From Def');
       result.destroy();
     });

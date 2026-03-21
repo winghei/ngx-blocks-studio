@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { BlockLoaderService } from './block-loader.service';
 import type { BlockRegistry } from './block-registry';
+import type { BlockDefinitionOrLoader } from '../registry/block-definitions.registry';
 import type { BlockDescription, BlockInput } from './block-description.schema';
 import {
   safeParseBlockDescription,
@@ -46,8 +47,8 @@ export class BlockDirective {
   readonly outputHandlers = input<Record<string, (value: unknown) => void>>({});
   /** Registry for block instances by id; pass from root so nested blocks share it. */
   readonly blockRegistry = input<BlockRegistry | null>(null);
-  /** Map id → full description; used when description is a block reference (id/blockId). */
-  readonly blockDefinitions = input<Record<string, unknown> | null>(null);
+  /** Map id → full description or loader; used when description is a block reference (id/blockId). */
+  readonly blockDefinitions = input<Record<string, BlockDefinitionOrLoader> | null>(null);
   /** Model for the block. */
   readonly model = input<Record<string, unknown> | string | undefined>(undefined);
 
@@ -57,6 +58,8 @@ export class BlockDirective {
   private loadedComponent: string | null = null;
   private loadedServicesKey: string | null = null;
   private loadGeneration = 0;
+  /** Invalidates in-flight block-reference resolution when the effect re-runs. */
+  private effectRunId = 0;
   /** Avoid re-parsing when the same description reference is passed (e.g. stable signal). */
   private lastDescRef: unknown = null;
   private lastParsedData: BlockDescription | null = null;
@@ -66,6 +69,7 @@ export class BlockDirective {
       const desc = this.description();
       const outputHandlers = this.outputHandlers();
       const inputDefs = this.blockDefinitions();
+      const runId = ++this.effectRunId;
 
       if (desc == null) {
         this.lastDescRef = null;
@@ -74,57 +78,73 @@ export class BlockDirective {
         return;
       }
 
-      const resolved = isBlockReference(desc)
-        ? resolveBlockReference(desc, inputDefs ?? undefined)
-        : desc;
-
-      let data: BlockDescription;
-      if (resolved === this.lastDescRef && this.lastParsedData != null) {
-        data = this.lastParsedData;
-      } else {
-        const parsed = safeParseBlockDescription(resolved);
-        if (!parsed.success) {
+      const runAfterResolved = (resolved: Record<string, unknown>) => {
+        if (runId !== this.effectRunId) {
           return;
         }
-        this.lastDescRef = resolved;
-        this.lastParsedData = parsed.data;
-        data = parsed.data;
-      }
-      const servicesKey = getServicesKey(data.services);
 
-      // Only clear when the logical description changed (component or services). Avoids
-      // clear+reload when the parent passes a new reference with the same content (e.g. BlockFor).
-      const mustReload =
-        this.loadResult == null ||
-        this.loadedComponent !== data.component ||
-        this.loadedServicesKey !== servicesKey;
-      if (!mustReload) {
-        // Description is logically unchanged (same component + services); no work needed.
+        let data: BlockDescription;
+        if (resolved === this.lastDescRef && this.lastParsedData != null) {
+          data = this.lastParsedData;
+        } else {
+          const parsed = safeParseBlockDescription(resolved);
+          if (!parsed.success) {
+            return;
+          }
+          this.lastDescRef = resolved;
+          this.lastParsedData = parsed.data;
+          data = parsed.data;
+        }
+        const servicesKey = getServicesKey(data.services);
+
+        // Only clear when the logical description changed (component or services). Avoids
+        // clear+reload when the parent passes a new reference with the same content (e.g. BlockFor).
+        const mustReload =
+          this.loadResult == null ||
+          this.loadedComponent !== data.component ||
+          this.loadedServicesKey !== servicesKey;
+        if (!mustReload) {
+          // Description is logically unchanged (same component + services); no work needed.
+          return;
+        }
+
+        this.clear();
+        const registry = this.blockRegistry() ?? undefined;
+        this.lastRegistry = registry ?? null;
+        this.lastId = data.id ?? null;
+
+        const generation = ++this.loadGeneration;
+        this.loader
+          .load(resolved, this.viewContainerRef, this.model, {
+            outputHandlers: Object.keys(outputHandlers).length > 0 ? outputHandlers : undefined,
+            registry,
+            blockDefinitions: inputDefs ?? undefined,
+          })
+          .then((result) => {
+            if (generation !== this.loadGeneration) return;
+            this.loadResult = result;
+            this.loadedComponent = data.component;
+            this.loadedServicesKey = servicesKey;
+          })
+          .catch((err: unknown) => {
+            if (generation !== this.loadGeneration) return;
+            console.error('Block load failed:', err);
+          });
+      };
+
+      if (isBlockReference(desc)) {
+        void resolveBlockReference(desc, inputDefs ?? undefined)
+          .then((resolved) => {
+            runAfterResolved(resolved);
+          })
+          .catch((err: unknown) => {
+            if (runId !== this.effectRunId) return;
+            console.error('Block reference resolution failed:', err);
+          });
         return;
       }
 
-      this.clear();
-      const registry = this.blockRegistry() ?? undefined;
-      this.lastRegistry = registry ?? null;
-      this.lastId = data.id ?? null;
-
-      const generation = ++this.loadGeneration;
-      this.loader
-        .load(resolved, this.viewContainerRef, this.model, {
-          outputHandlers: Object.keys(outputHandlers).length > 0 ? outputHandlers : undefined,
-          registry,
-          blockDefinitions: inputDefs ?? undefined,
-        })
-        .then((result) => {
-          if (generation !== this.loadGeneration) return;
-          this.loadResult = result;
-          this.loadedComponent = data.component;
-          this.loadedServicesKey = servicesKey;
-        })
-        .catch((err: unknown) => {
-          if (generation !== this.loadGeneration) return;
-          console.error('Block load failed:', err);
-        });
+      runAfterResolved(desc as Record<string, unknown>);
     });
 
     this.destroyRef.onDestroy(() => this.clear());

@@ -10,20 +10,12 @@
  */
 
 // ─── Block definitions (layout / shared) ───────────────────────────────────
-import { appNavBlock } from './nav.block';
 
 // ─── Block definitions (pages) ─────────────────────────────────────────────
-import { docsBlock, docsRoute } from './docs/index.block';
+import { docsRoute } from './docs/index.block';
 import { examplesRoute } from './examples.block';
 import { homeRoute } from './home.block';
-import { personFormBlock, routes as personFormRoutes } from './person-form.block';
-
-/** All block definitions: blockId → definition (for registration and route data). */
-export const blockDefinitions = {
-  AppNav: appNavBlock,
-  PersonForm: personFormBlock,
-  DocsPage: docsBlock,
-} as const;
+import { routes as personFormRoutes } from './person-form.block';
 
 /** All demo routes (path, component, data with block + blockDefinitions). */
 export const routes = [homeRoute, docsRoute, ...personFormRoutes, examplesRoute];
@@ -34,3 +26,4 @@ export { examplesRoute } from './examples.block';
 export { homeRoute } from './home.block';
 export { appNavBlock } from './nav.block';
 export { personFormBlock, routes as personFormRoutes } from './person-form.block';
+

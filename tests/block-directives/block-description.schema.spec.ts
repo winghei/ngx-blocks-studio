@@ -9,7 +9,7 @@ import {
   isOutputReference,
   type BlockReference,
 } from '../../projects/blocks-studio/src/lib/core/block-loader/block-description.schema';
-import { BlockDefinitionsRegistry } from '../../projects/blocks-studio/src/lib/core/block-loader/block-definitions.registry';
+import { BlockDefinitionsRegistry } from '../../projects/blocks-studio/src/lib/core/registry/block-definitions.registry';
 
 describe('block-description.schema', () => {
   describe('safeParseBlockDescription', () => {
@@ -188,7 +188,7 @@ describe('block-description.schema', () => {
       });
     });
 
-    it('resolves from blockDefinitions when provided', () => {
+    it('resolves from blockDefinitions when provided', async () => {
       const defs = {
         TestBlock: {
           component: 'OverrideComponent',
@@ -196,7 +196,7 @@ describe('block-description.schema', () => {
           inputs: { initial: false },
         },
       };
-      const result = resolveBlockReference(
+      const result = await resolveBlockReference(
         { blockId: 'TestBlock' } as BlockReference,
         defs,
       );
@@ -204,8 +204,8 @@ describe('block-description.schema', () => {
       expect((result as { inputs?: { initial?: boolean } }).inputs?.initial).toBe(false);
     });
 
-    it('resolves from global registry when not in blockDefinitions', () => {
-      const result = resolveBlockReference(
+    it('resolves from global registry when not in blockDefinitions', async () => {
+      const result = await resolveBlockReference(
         { blockId: 'TestBlock' } as BlockReference,
         {},
       );
@@ -213,8 +213,8 @@ describe('block-description.schema', () => {
       expect((result as { inputs?: { initial?: boolean } }).inputs?.initial).toBe(true);
     });
 
-    it('merges blockDefinition override onto base', () => {
-      const result = resolveBlockReference(
+    it('merges blockDefinition override onto base', async () => {
+      const result = await resolveBlockReference(
         {
           blockId: 'TestBlock',
           blockDefinition: { inputs: { extra: 'value' } },
@@ -225,16 +225,53 @@ describe('block-description.schema', () => {
       expect((result as { inputs?: Record<string, unknown> }).inputs?.extra).toBe('value');
     });
 
-    it('throws when blockId is missing', () => {
-      expect(() =>
-        resolveBlockReference({ id: 'X' } as BlockReference, {}),
-      ).toThrow('Block reference must have blockId');
+    it('resolves lazy blockDefinitions entry (loader)', async () => {
+      const defs = {
+        LazyBlock: () =>
+          Promise.resolve({
+            component: 'LazyComponent',
+            id: 'LazyBlock',
+            inputs: { from: 'loader' },
+          }),
+      };
+      const result = await resolveBlockReference(
+        { blockId: 'LazyBlock' } as BlockReference,
+        defs,
+      );
+      expect(result.component).toBe('LazyComponent');
+      expect((result as { inputs?: { from?: string } }).inputs?.from).toBe('loader');
     });
 
-    it('throws when block is not found', () => {
-      expect(() =>
+    it('resolves from global registry when registered as loader', async () => {
+      registry.register('LazyGlobalBlock', () =>
+        Promise.resolve({
+          component: 'LazyG',
+          id: 'LazyGlobalBlock',
+          inputs: {},
+          services: [],
+        }),
+      );
+      try {
+        const result = await resolveBlockReference(
+          { blockId: 'LazyGlobalBlock' } as BlockReference,
+          {},
+        );
+        expect(result.component).toBe('LazyG');
+      } finally {
+        registry.unregister('LazyGlobalBlock');
+      }
+    });
+
+    it('throws when blockId is missing', async () => {
+      await expect(
+        resolveBlockReference({ id: 'X' } as BlockReference, {}),
+      ).rejects.toThrow('Block reference must have blockId');
+    });
+
+    it('throws when block is not found', async () => {
+      await expect(
         resolveBlockReference({ blockId: 'NonExistent' } as BlockReference, {}),
-      ).toThrow('Block "NonExistent" has no definition');
+      ).rejects.toThrow('Block "NonExistent" has no definition');
     });
   });
 });

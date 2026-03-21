@@ -1,43 +1,70 @@
 import { Injector, inject } from '@angular/core';
 import {
-  BlockDirective,
+  BlockDefinitionsRegistry,
   ComponentRegistry,
   DirectiveRegistry,
-  ServiceRegistry,
+  ServiceRegistry
 } from 'ngx-blocks-studio';
-import { BlockHostComponent } from '../../blocks/block-host/block-host.component';
-import { NumberInputBlockComponent } from '../../blocks/input/number-input/number-input-block.component';
-import { StringInputBlockComponent } from '../../blocks/input/string-input/string-input-block.component';
-import { RowLayoutBlockComponent } from '../../blocks/layout/row-layout/row-layout-block.component';
-import { SectionBlockComponent } from '../../blocks/layout/section/section-block.component';
-import { MouseEventsDirective } from '../../directives/mouse-events.directive';
-import { FormStateService } from '../services/form-state.service';
 
 /**
  * Registers demo blocks, FormState, AuthState, DashboardState, and BlockHost with blocks-studio registries.
  * Call once at app init (e.g. APP_INITIALIZER). Pass injector when not in injection context.
  */
 export function registerDemoBlocks(injector?: Injector): void {
-  ServiceRegistry.getInstance().setInjector(injector ?? inject(Injector));
+  const serviceRegistry = ServiceRegistry.getInstance();
+  serviceRegistry.setInjector(injector ?? inject(Injector));
+  serviceRegistry.register('FormState', ()=> import('../services/form-state.service').then(m => m.FormStateService));
 
-  ServiceRegistry.getInstance().register('FormState', FormStateService);
-
-  ComponentRegistry.getInstance().register('RowLayout', RowLayoutBlockComponent);
-  ComponentRegistry.getInstance().register('Section', SectionBlockComponent);
-  ComponentRegistry.getInstance().register('StringInput', StringInputBlockComponent);
-  ComponentRegistry.getInstance().register('NumberInput', NumberInputBlockComponent);
-
-  ComponentRegistry.getInstance().register('BlockHost', BlockHostComponent);
-  ComponentRegistry.getInstance().register('HtmlBlock', () =>
+  const componentRegistry = ComponentRegistry.getInstance();
+  componentRegistry.register('RowLayout', () =>
+    import('../../blocks/layout/row-layout/row-layout-block.component').then(
+      (m) => m.RowLayoutBlockComponent,
+    ),
+  );
+  componentRegistry.register('Section', () =>
+    import('../../blocks/layout/section/section-block.component').then(
+      (m) => m.SectionBlockComponent,
+    ),
+  );
+  componentRegistry.register('StringInput', () =>
+    import('../../blocks/input/string-input/string-input-block.component').then(
+      (m) => m.StringInputBlockComponent,
+    ),
+  );
+  componentRegistry.register('NumberInput', () =>
+    import('../../blocks/input/number-input/number-input-block.component').then(
+      (m) => m.NumberInputBlockComponent,
+    ),
+  );
+  componentRegistry.register('BlockHost', () =>
+    import('../../blocks/block-host/block-host.component').then((m) => m.BlockHostComponent),
+  );
+  componentRegistry.register('HtmlBlock', () =>
     import('../../blocks/html-block/html-block').then((m) => m.HtmlBlock),
   );
-  ComponentRegistry.getInstance().register('LinkBlock', () =>
+  componentRegistry.register('LinkBlock', () =>
     import('../../blocks/link-block/link-block.component').then((m) => m.LinkBlockComponent),
   );
-  ComponentRegistry.getInstance().register('BlockFor', () =>
+  componentRegistry.register('BlockFor', () =>
     import('../../blocks/block-for.component').then((m) => m.BlockForComponent),
   );
 
-  DirectiveRegistry.getInstance().register('MouseEvents', MouseEventsDirective);
-  DirectiveRegistry.getInstance().register('Block', BlockDirective);
+  const directiveRegistry = DirectiveRegistry.getInstance();
+  directiveRegistry.register('MouseEvents', () =>
+    import('../../directives/mouse-events.directive').then((m) => m.MouseEventsDirective),
+  );
+  directiveRegistry.register('Block', () =>
+    import('ngx-blocks-studio').then((m) => m.BlockDirective),
+  );
+
+  const blockDefinitionsRegistry = BlockDefinitionsRegistry.getInstance();
+  blockDefinitionsRegistry.register('AppNav', () =>
+    import('../../route-data/nav.block').then((m) => m.appNavBlock),
+  );
+  blockDefinitionsRegistry.register('PersonForm', () =>
+    import('../../route-data/person-form.block').then((m) => m.personFormBlock),
+  );
+  blockDefinitionsRegistry.register('DocsPage', () =>
+    import('../../route-data/docs/index.block').then((m) => m.docsBlock),
+  );
 }

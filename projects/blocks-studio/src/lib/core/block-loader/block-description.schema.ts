@@ -1,5 +1,18 @@
 import { z } from 'zod';
-import { BlockDefinitionsRegistry } from './block-definitions.registry';
+import {
+  BlockDefinitionsRegistry,
+  type BlockDefinitionOrLoader,
+  isBlockDefinitionLoader,
+} from '../registry/block-definitions.registry';
+
+async function resolveBlockDefinitionValue(
+  raw: BlockDefinitionOrLoader,
+): Promise<Record<string, unknown>> {
+  if (isBlockDefinitionLoader(raw)) {
+    return raw();
+  }
+  return raw;
+}
 
 /**
  * Service entry: root-scoped (string id or { id, alias? } with no scope) or self-scoped ({ id, scope: "self", alias? }).
@@ -157,22 +170,26 @@ export function deepMergeBlockDefinition(
  * and the global BlockDefinitionsRegistry. Per-call blockDefinitions take precedence
  * over global entries. If blockDefinition is present, it is deep-merged onto the base;
  * otherwise returns a shallow copy of the base.
+ *
+ * Registry and per-call map entries may be plain objects or async loaders (same pattern
+ * as ComponentRegistry / DirectiveRegistry).
  */
-export function resolveBlockReference(
+export async function resolveBlockReference(
   ref: BlockReference,
-  blockDefinitions: Record<string, unknown> | null | undefined,
-): Record<string, unknown> {
+  blockDefinitions: Record<string, BlockDefinitionOrLoader> | null | undefined,
+): Promise<Record<string, unknown>> {
   const blockId = ref.blockId;
   const id = ref.id;
   const registry: BlockDefinitionsRegistry = BlockDefinitionsRegistry.getInstance();
   if (!blockId || typeof blockId !== 'string')
     throw new Error('Block reference must have blockId.');
 
-  let base: unknown;
+  let base: Record<string, unknown> | undefined;
   if (blockDefinitions && Object.prototype.hasOwnProperty.call(blockDefinitions, blockId)) {
-    base = blockDefinitions[blockId];
+    const raw = blockDefinitions[blockId] as BlockDefinitionOrLoader;
+    base = await resolveBlockDefinitionValue(raw);
   } else {
-    base = registry.get(blockId);
+    base = await registry.get(blockId);
   }
 
   if (base == null || typeof base !== 'object')

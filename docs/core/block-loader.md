@@ -17,7 +17,6 @@ The block loader renders Angular components from a **JSON description**. It reso
 ```
 projects/blocks-studio/src/lib/core/block-loader/
 ├── index.ts                    # Public exports
-├── block-definitions.registry.ts # BlockDefinitionsRegistry (global blockId → definition)
 ├── block-description.schema.ts # BlockDescription, BlockReference, safeParse, isBlockReference, resolveBlockReference, deepMergeBlockDefinition
 ├── block-registry.ts           # BlockRegistry, BlockInstanceHandle, BlockRegistryImpl
 ├── ref-expressions.ts          # parseRefPath, parseTwoWayRef, classifyTwoWayString
@@ -25,6 +24,9 @@ projects/blocks-studio/src/lib/core/block-loader/
 ├── output-reference.ts         # createOutputHandler (reference vs directive handler)
 ├── block-loader.service.ts     # BlockLoaderService
 └── block.directive.ts          # BlockDirective
+
+projects/blocks-studio/src/lib/core/registry/
+└── block-definitions.registry.ts # BlockDefinitionsRegistry (global blockId → definition)
 ```
 
 ## Overview
