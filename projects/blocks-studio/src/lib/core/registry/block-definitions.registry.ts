@@ -1,3 +1,5 @@
+import { RegistryMetadataStore, type RegistryMetadataRecord } from './registry-metadata';
+
 /**
  * Global registry of block id → definition. Register block configs at app init
  * so they can be used as templates anywhere (e.g. nested blocks that reference
@@ -26,6 +28,7 @@ export class BlockDefinitionsRegistry {
   private static instance: BlockDefinitionsRegistry;
   private readonly definitions = new Map<string, BlockDefinitionOrLoader>();
   private readonly loadedDefinitions = new Map<string, Record<string, unknown>>();
+  private readonly metadataStore = RegistryMetadataStore.getInstance();
 
   private constructor() {}
 
@@ -36,13 +39,23 @@ export class BlockDefinitionsRegistry {
     return BlockDefinitionsRegistry.instance;
   }
 
-  /** Register a block template by id (plain object or async loader). */
-  register(id: string, definition: BlockDefinitionOrLoader): void {
+  /**
+   * Register a block template by id (plain object or async loader).
+   * Optional metadata is stored in the shared {@link RegistryMetadataStore}.
+   */
+  register(
+    id: string,
+    definition: BlockDefinitionOrLoader,
+    metadata?: RegistryMetadataRecord,
+  ): void {
     this.definitions.set(id, definition);
     if (!isBlockDefinitionLoader(definition)) {
       this.loadedDefinitions.set(id, definition as Record<string, unknown>);
     } else {
       this.loadedDefinitions.delete(id);
+    }
+    if (metadata != null && Object.keys(metadata).length > 0) {
+      this.metadataStore.set(id, 'blockDefinition', metadata);
     }
   }
 
@@ -110,12 +123,20 @@ export class BlockDefinitionsRegistry {
   }
 
   unregister(id: string): boolean {
+    this.metadataStore.remove(id);
     this.loadedDefinitions.delete(id);
     return this.definitions.delete(id);
   }
 
   clear(): void {
+    for (const name of this.definitions.keys()) {
+      this.metadataStore.remove(name);
+    }
     this.definitions.clear();
     this.loadedDefinitions.clear();
+  }
+
+  getMetadata(key: string): RegistryMetadataRecord | undefined {
+    return this.metadataStore.getMetadata(key);
   }
 }

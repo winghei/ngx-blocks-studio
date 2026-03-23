@@ -1,7 +1,12 @@
 /**
- * Registry entry type: component, service, guard, or directive.
+ * Registry entry type: component, service, guard, directive, or block definition.
  */
-export type RegistryEntryType = 'component' | 'service' | 'guard' | 'directive';
+export type RegistryEntryType =
+  | 'component'
+  | 'service'
+  | 'guard'
+  | 'directive'
+  | 'blockDefinition';
 
 /**
  * Metadata value stored per registry key.
@@ -13,6 +18,7 @@ export interface AllRegistryMetadata {
   services: Map<string, RegistryMetadataRecord>;
   guards: Map<string, RegistryMetadataRecord>;
   directives: Map<string, RegistryMetadataRecord>;
+  blockDefinitions: Map<string, RegistryMetadataRecord>;
 }
 
 /**
@@ -34,7 +40,7 @@ export class RegistryMetadataStore {
   }
 
   /**
-   * Set metadata for a registry key (component, service, or guard).
+   * Set metadata for a registry key (component, service, guard, directive, or block definition).
    */
   set(key: string, type: RegistryEntryType, data: RegistryMetadataRecord): void {
     this.entries.set(key, { type, data });
@@ -76,6 +82,7 @@ export class RegistryMetadataStore {
       services: this.getByType('service'),
       guards: this.getByType('guard'),
       directives: this.getByType('directive'),
+      blockDefinitions: this.getByType('blockDefinition'),
     };
   }
 

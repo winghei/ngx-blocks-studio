@@ -1,6 +1,6 @@
 {
   "name": "ngx-blocks-studio",
-  "version": "0.0.13",
+  "version": "0.0.14",
   "peerDependencies": {
     "@angular/common": "^21.0.0",
     "@angular/core": "^21.0.0",
