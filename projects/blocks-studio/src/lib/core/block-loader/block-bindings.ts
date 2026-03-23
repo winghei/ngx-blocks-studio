@@ -138,7 +138,26 @@ export function resolveBlockInputsAndOutputs(
   return { resolvedInputs, resolvedOutputs, resolvedTwoWay };
 }
 
-function interpolateTemplateMixed(template: string, ctx: ResolverContext): string {
+function interpolateTemplateMixed(template: string, ctx: ResolverContext): unknown {
+  const trimmed = template.trim();
+  if (trimmed.startsWith('{{')) {
+    const close = trimmed.indexOf('}}', 2);
+    if (
+      close !== -1 &&
+      close + 2 === trimmed.length &&
+      trimmed.indexOf('{{', 2) === -1
+    ) {
+      const ref = trimmed.slice(2, close).trim();
+      const resolved = resolveRefPath(ref, ctx);
+      const val = ref
+        ? resolved != null
+          ? getRefValue(ref, ctx)
+          : getValueByPath(ctx.currentInstance?.model?.() ?? {}, ref)
+        : null;
+      return val != null ? val : '';
+    }
+  }
+
   const parts: string[] = [];
   let s = template;
   for (let i = 0; i < INTERPOLATE_MAX_PLACEHOLDERS; i++) {

@@ -195,10 +195,12 @@ export async function resolveBlockReference(
   if (base == null || typeof base !== 'object')
     throw new Error(`Block "${blockId}" has no definition.`);
 
-  const baseObj = { ...base, id };
+  if(id != null && id !== '') { 
+    base = { ...base, id };
+  }
 
   const overrides = ref.blockDefinition;
   if (overrides == null || typeof overrides !== 'object' || Object.keys(overrides).length === 0)
-    return { ...baseObj };
-  return deepMergeBlockDefinition(baseObj, overrides);
+    return { ...base };
+  return deepMergeBlockDefinition(base, overrides);
 }

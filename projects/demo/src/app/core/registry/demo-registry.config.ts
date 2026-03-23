@@ -67,4 +67,7 @@ export function registerDemoBlocks(injector?: Injector): void {
   blockDefinitionsRegistry.register('DocsPage', () =>
     import('../../route-data/docs/index.block').then((m) => m.docsBlock),
   );
+  blockDefinitionsRegistry.register('ExamplePage', () =>
+    import('../../route-data/examples.block').then((m) => m.ExamplePageBlock),
+  );
 }

@@ -6,13 +6,18 @@ export const examplesRoute = {
   title: 'Block examples',
   data: {
     block: {
-      component: 'RowLayout',
-      id: 'ExamplePage',
-      services: [{ id: 'FormState', scope: 'self' as const }],
-      inputs: {
-        rows: [{ columns: [{ blockId: 'AppNav' }] }, ...blockDirectiveUseCasesRows],
-      },
+       blockId: 'ExamplePage',
     },
     model: { firstName: 'Demo', lastName: 'User', email: 'demo@example.com', age: 25 },
+  },
+} as const;
+
+
+export const ExamplePageBlock = {
+  component: 'RowLayout',
+  id: 'ExamplePage',
+  services: [{ id: 'FormState', scope: 'self' as const }],
+  inputs: {
+    rows: [{ columns: [{ blockId: 'AppNav' }] }, ...blockDirectiveUseCasesRows],
   },
 } as const;
