@@ -38,13 +38,13 @@ export const blockDirectiveUseCasesRows = [
             {
               component: 'HtmlBlock',
               inputs: {
-                html: '<h4>1.2 Read-only refs: <code>&#123;&#123; refPath &#125;&#125;</code></h4><p><strong>Description:</strong> A string containing <code>&#123;&#123; refPath &#125;&#125;</code> is interpolated: each placeholder is replaced with the value at that path. Ref path is either <strong>current block</strong> (<code>serviceOrModel.path</code>) or <strong>named block</strong> (<code>BlockID:serviceOrModel.path</code>, e.g. <code>PersonForm:FormState.firstName</code>). An effect keeps the value in sync when refs (e.g. signals) change.</p><p><strong>Use case:</strong> Display state from a service or another block without two-way binding.</p><p><strong>Demo:</strong> Person form HtmlBlock shows <code>&#123;&#123;PersonForm:FormState.nestedSignal.sub.a&#125;&#125;</code>, <code>&#123;&#123;PersonForm:FormState.lastName&#125;&#125;</code>. Dashboard shows <code>&#123;&#123;DashboardPage:DashboardState.note&#125;&#125;</code>.</p>',
+                html: '<h4>1.2 Read-only refs: <code>&#123;&#123; refPath &#125;&#125;</code></h4><p><strong>Description:</strong> A string containing <code>&#123;&#123; refPath &#125;&#125;</code> is interpolated: each placeholder is replaced with the value at that path. Ref path is either <strong>current block</strong> (<code>serviceOrModel.path</code> or <code>model.path</code>) or <strong>named block</strong> (<code>BlockID:serviceOrModel.path</code>, e.g. <code>PersonForm:FormState.firstName</code>). A <strong>computed</strong> keeps the value in sync when refs (e.g. signals) change.</p><p><strong>Use case:</strong> Display state from a service, the current block model, or another block without two-way binding.</p><p><strong>Demo:</strong> Person form HtmlBlock shows <code>&#123;&#123;PersonForm:FormState.nestedSignal.sub.a&#125;&#125;</code>, <code>&#123;&#123;PersonForm:FormState.lastName&#125;&#125;</code>. Dashboard shows <code>&#123;&#123;DashboardPage:DashboardState.note&#125;&#125;</code>.</p>',
               },
             },
             {
               component: 'HtmlBlock',
               inputs: {
-                html: "<h4>1.3 Two-way refs: <code>&#91;&#40; refPath &#41;&#93;</code></h4><p><strong>Description:</strong> The <strong>entire</strong> input value must be exactly <code>\"&#91;&#40;refPath&#41;&#93;\"</code>. The loader (1) sets the initial value from the ref, (2) syncs ref → component when the ref changes, (3) syncs component → ref when the component's signal/input changes. No mixing with literals or <code>&#123;&#123; &#125;&#125;</code>.</p><p><strong>Use case:</strong> Form controls bound to a shared state service (e.g. StringInput/NumberInput value bound to <code>FormState.firstName</code>, <code>FormState.age</code>).</p><p><strong>Demo:</strong> Person form and login/dashboard use <code>value: '&#91;&#40;PersonForm:FormState.firstName&#41;&#93;'</code>, <code>value: '&#91;&#40;LoginPage:AuthState.username&#41;&#93;'</code>, <code>value: '&#91;&#40;DashboardPage:DashboardState.note&#41;&#93;'</code>.</p>",
+                html: "<h4>1.3 Two-way refs: <code>&#91;&#40; refPath &#41;&#93;</code></h4><p><strong>Description:</strong> The <strong>entire</strong> input value must be exactly <code>\"&#91;&#40;refPath&#41;&#93;\"</code>. The loader wires Angular <strong>twoWayBinding</strong>: initial value from the ref, then ref ↔ component stay in sync. No mixing with literals or <code>&#123;&#123; &#125;&#125;</code> in the same string. If the target is not a writable signal, the loader may fall back to read-only and warn.</p><p><strong>Use case:</strong> Form controls bound to shared state (e.g. StringInput/NumberInput <code>value</code> to <code>FormState.firstName</code>, <code>FormState.age</code>).</p><p><strong>Demo:</strong> Person form and login/dashboard use <code>value: '&#91;&#40;PersonForm:FormState.firstName&#41;&#93;'</code>, <code>value: '&#91;&#40;LoginPage:AuthState.username&#41;&#93;'</code>, <code>value: '&#91;&#40;DashboardPage:DashboardState.note&#41;&#93;'</code>.</p>",
               },
             },
           ],
@@ -62,7 +62,7 @@ export const blockDirectiveUseCasesRows = [
             {
               component: 'HtmlBlock',
               inputs: {
-                html: "<pre class=\"p-2 bg-light border rounded\"><code>{\n  component: 'StringInput',\n  inputs: {\n    label: 'Literal label',\n    value: 'literal value',\n    placeholder: 'placeholder',\n  },\n}</code></pre>",
+                html: "<pre class=\"doc-snippet\"><code>{\n  component: 'StringInput',\n  inputs: {\n    label: 'Literal label',\n    value: 'literal value',\n    placeholder: 'placeholder',\n  },\n}</code></pre>",
               },
             },
             {
@@ -90,12 +90,12 @@ export const blockDirectiveUseCasesRows = [
         component: 'Section',
         inputs: {
           title:
-            'Example: read-only refs <code>&#123;&#123; refPath &#125;&#125;</code> on a HtmlBlock and FormsState service',
+            'Example: read-only refs <code>&#123;&#123; refPath &#125;&#125;</code> on a HtmlBlock and FormState service',
           children: [
             {
               component: 'HtmlBlock',
               inputs: {
-                html: `<pre class="p-2 bg-light border rounded" style="white-space: pre-wrap; word-break: break-all;"><code>{
+                html: `<pre class="doc-snippet" style="white-space: pre-wrap; word-break: break-all;"><code>{
   component: 'HtmlBlock',
   inputs: {
     html: 'Displaying state from the ExamplePage FormState:&lt;br/&gt;' +
@@ -135,7 +135,7 @@ export const blockDirectiveUseCasesRows = [
             {
               component: 'HtmlBlock',
               inputs: {
-                html: `<pre class="p-2 bg-light border rounded" style="white-space: pre-wrap; word-break: break-all;"><code>{<br/>  component: &#39;StringInput&#39;,<br/>  inputs: {<br/>    label: &#39;First name&#39;,<br/>    value: '&#91;&#40;ExamplePage:FormState.firstName&#41;&#93;',<br/>    placeholder: &#39;First name&#39;,<br/>  },<br/>}</code></pre>`,
+                html: `<pre class="doc-snippet" style="white-space: pre-wrap; word-break: break-all;"><code>{<br/>  component: &#39;StringInput&#39;,<br/>  inputs: {<br/>    label: &#39;First name&#39;,<br/>    value: '&#91;&#40;ExamplePage:FormState.firstName&#41;&#93;',<br/>    placeholder: &#39;First name&#39;,<br/>  },<br/>}</code></pre>`,
               },
             },
             {
@@ -194,11 +194,11 @@ export const blockDirectiveUseCasesRows = [
               inputs: {
                 html: '<b>FirstName (root-scoped)</b>: {{FormState.firstName}}',
               },
-              services: [{ id: 'FormState' }],
+              services: [{ id: 'GeneralModelService', alias: 'FormState', scope: 'self' as const }],
             },
             {
               component: 'StringInput',
-              services: [{ id: 'FormState' }],
+              services: [{ id: 'GeneralModelService', alias: 'FormState', scope: 'self' as const }],
               inputs: {
                 label: 'First name',
                 value: '[(FormState.firstName)]',
@@ -225,7 +225,7 @@ export const blockDirectiveUseCasesRows = [
             {
               component: 'HtmlBlock',
               inputs: {
-                html: "<p>This page block has <code>services: [{ id: 'FormState', scope: 'self' }]</code> and the route passes <code>model: { firstName: 'Demo', lastName: 'User', age: 25 }</code>. The block loader attaches the self-scoped FormState instance to the block instance and, when it finds a <code>model</code> signal on the service, wires it to the resolved model signal so reads and writes stay in sync. The read-only and two-way examples above use that same FormState; initial values come from the route model.</p>",
+                html: "<p>This page block has <code>services: [{ id: 'GeneralModelService', alias: 'FormState', scope: 'self' as const }]</code> and the route passes <code>model: { firstName: 'Demo', lastName: 'User', age: 25 }</code>. The block loader attaches the self-scoped FormState instance to the block instance and, when it finds a <code>model</code> signal on the service, wires it to the resolved model signal so reads and writes stay in sync. The read-only and two-way examples above use that same FormState; initial values come from the route model.</p>",
               },
             },
           ],
@@ -243,7 +243,7 @@ export const blockDirectiveUseCasesRows = [
             {
               component: 'HtmlBlock',
               inputs: {
-                html: "<p><strong>Registering directives:</strong> Register directive types in <strong>DirectiveRegistry</strong> by id. In the block description, set <code>directives: ['DirectiveId']</code>. The loader resolves these ids and passes them as <strong>host directives</strong> when creating the component. The same flat <code>inputs</code> and <code>outputs</code> are applied to the <strong>component and every host directive</strong> that has that key.</p><p><strong>Inputs/outputs on component and directives:</strong> For each key in <code>inputs</code> (or <code>outputs</code>), the loader finds <strong>all targets</strong> that have that key (component and host directive instances). It resolves the value once and <strong>sets it on every target</strong>. If a key exists only on a directive, only that directive receives it.</p>",
+                html: "<p><strong>Registering directives:</strong> Register directive types in <strong>DirectiveRegistry</strong> by id. In the block description, set <code>directives: ['DirectiveId']</code>. The loader resolves these ids and passes them as <strong>host directives</strong> when creating the component. The same flat <code>inputs</code> and <code>outputs</code> are applied to the <strong>component and every host directive</strong> that declares that key.</p><p><strong>Validation:</strong> For each key, the loader checks the component and host directives; if <strong>no</strong> target has that input/output name, it logs a warning and skips the key. If a key exists on multiple targets, the resolved value or handler is applied to <strong>every</strong> matching target.</p>",
               },
             },
             {
@@ -255,7 +255,7 @@ export const blockDirectiveUseCasesRows = [
             {
               component: 'HtmlBlock',
               inputs: {
-                html: `<pre class="p-2 bg-light border rounded" style="white-space: pre-wrap; word-break: break-all;"><code>{<br/>  component: 'HtmlBlock',<br/>  directives: ['MouseEvents','Block'],<br/>  inputs: {<br/>    html: '&lt;b&gt;&lt;i&gt;Click ME and check the console&lt;/i&gt;&lt;/b&gt;',<br/>    description: {<br/>      component: 'HtmlBlock',<br/>      inputs: {<br/>        html: 'This is nested HTMLBlock as extended input from the Block directive',<br/>      },<br/>    },<br/>  },<br/>  outputs: {<br/>    clicked: {<br/>      type: 'reference',<br/>      reference: 'ExamplePage:FormState',<br/>      method: 'alert',<br/>      params: ['Alert from clicked event'],<br/>    },<br/>  },<br/>}</code></pre>`,
+                html: `<pre class="doc-snippet" style="white-space: pre-wrap; word-break: break-all;"><code>{<br/>  component: 'HtmlBlock',<br/>  directives: ['MouseEvents','Block'],<br/>  inputs: {<br/>    html: '&lt;b&gt;&lt;i&gt;Click ME and check the console&lt;/i&gt;&lt;/b&gt;',<br/>    description: {<br/>      component: 'HtmlBlock',<br/>      inputs: {<br/>        html: 'This is nested HTMLBlock as extended input from the Block directive',<br/>      },<br/>    },<br/>  },<br/>  outputs: {<br/>    clicked: {<br/>      ref: 'ExamplePage:FormState.alert',<br/>      params: ['Alert from clicked event'],<br/>    },<br/>  },<br/>}</code></pre>`,
               },
             },
             {
@@ -272,10 +272,10 @@ export const blockDirectiveUseCasesRows = [
               },
               outputs: {
                 clicked: {
-                  type: 'reference',
-                  reference: 'ExamplePage:FormState',
-                  method: 'alert',
-                  params: ['This a resolved name {{ref("ExamplePage:FormState.firstName") + " " + ref("ExamplePage:FormState.lastName")}} from clicked event'],
+                  ref: 'ExamplePage:FormState.alert',
+                  params: [
+                    'This a resolved name {{ref("ExamplePage:FormState.firstName") + " " + ref("ExamplePage:FormState.lastName")}} from clicked event',
+                  ],
                 },
               },
             },
@@ -330,7 +330,7 @@ export const blockDirectiveUseCasesRows = [
                       {
                         component: 'HtmlBlock',
                         inputs: {
-                          html: "<p class=\"p-2 border rounded\">This paragraph is rendered from an <strong>inline full block description</strong>: <code>{ component: 'HtmlBlock', inputs: { html: '...' } }</code>. No registry lookup.</p>",
+                          html: '<p class="doc-surface">This paragraph is rendered from an <strong>inline full block description</strong>: <code>{ component: \'HtmlBlock\', inputs: { html: \'...\' } }</code>. No registry lookup.</p>',
                         },
                       },
                       {
@@ -355,18 +355,18 @@ export const blockDirectiveUseCasesRows = [
       {
         component: 'Section',
         inputs: {
-          title: '5. Output handlers',
+          title: '5. Outputs (callable refs)',
           children: [
             {
               component: 'HtmlBlock',
               inputs: {
-                html: "<h4>5.1 Output as reference</h4><p>In <code>outputs</code>, set the value to <code>{ type: 'reference', reference: 'RefPath', method: 'methodName', params?: [...] }</code>. When the output fires, the loader resolves <code>reference</code>, calls <code>method</code> on that target with <code>params</code> (or the emitted value if no params). Ref path can point to a service or a signal (e.g. <code>PersonForm:FormState.age</code> → signal's <code>set</code>).</p><p><strong>Demo:</strong> Person form NumberInput uses <code>valueChange: { type: 'reference', reference: 'FormState', method: 'alert', params: ['Age changed to &#123;&#123;value&#125;&#125;'] }</code> and <code>valueChange: { type: 'reference', reference: 'PersonForm:FormState.age', method: 'set' }</code>.</p>",
+                html: "<h4>5.1 String or <code>ref</code> object</h4><p>Each <code>outputs</code> entry is a <strong>string</strong> callable ref or an <strong><code>OutputCallObject</code></strong> with at least <code>ref</code>. The <strong>last dot-separated segment</strong> after <code>:</code> (or the last segment for the current block) is the <strong>method name</strong>; the rest is the ref path resolved via the block registry (see <code>splitCallableRef</code> in the library).</p><p><strong>Examples:</strong> <code>\"PersonForm:FormState.age.set\"</code> — call <code>set</code> on the resolved signal (if <code>params</code> is omitted, the emitted event value is passed). <code>{ ref: 'FormState.alert', params: ['Age changed to &#123;&#123;value&#125;&#125;'] }</code> — template strings in <code>params</code> are resolved with the event payload.</p><p><strong>Demo:</strong> Person form <code>NumberInput</code> uses <code>valueChange: { ref: 'FormState.alert', params: ['Age changed to &#123;&#123;value&#125;&#125;'] }</code> and <code>valueChange: 'PersonForm:FormState.age.set'</code>.</p>",
               },
             },
             {
               component: 'HtmlBlock',
               inputs: {
-                html: '<h4>5.2 then / onSuccess / onError</h4><p>When the method returns a <strong>Promise</strong>, you can add <code>then</code> (array of <code>{ reference, method, params? }</code>) or <code>onSuccess</code> / <code>onError</code>. These are invoked after the promise resolves or rejects.</p><h4>5.3 outputHandlers</h4><p>If the output value is <strong>not</strong> a reference config, the loader uses the <strong>outputHandlers</strong> map passed to the directive (key = output name). If no handler is provided, it uses a no-op.</p>',
+                html: "<h4>5.2 <code>then</code> and <code>onError</code></h4><p>On an <code>OutputCallObject</code>, optional <code>then</code> runs after the main call (and after a returned <strong>Promise</strong> settles). Steps use the same callable <code>ref</code> strings or nested step objects. <code>onError</code> runs when the main promise rejects. There is no separate <code>onSuccess</code> field — use <code>then</code> for post-success chains.</p><h4>5.3 Invalid output value</h4><p>If the value is neither a non-empty callable string nor an object with a <code>ref</code> field, <code>createOutputHandler</code> returns a <strong>no-op</strong>. There is <strong>no</strong> <code>outputHandlers</code> map on <code>BlockDirective</code> or <code>load()</code> options.</p>",
               },
             },
           ],
@@ -379,7 +379,7 @@ export const blockDirectiveUseCasesRows = [
       {
         component: 'Section',
         inputs: {
-          title: 'Example: output as reference',
+          title: 'Example: callable ref on valueChange',
           children: [
             {
               component: 'HtmlBlock',
@@ -397,9 +397,7 @@ export const blockDirectiveUseCasesRows = [
               },
               outputs: {
                 valueChange: {
-                  type: 'reference' as const,
-                  reference: 'ExamplePage:FormState',
-                  method: 'alert',
+                  ref: 'ExamplePage:FormState.alert',
                   params: ['Age changed'],
                 },
               },
@@ -419,7 +417,7 @@ export const blockDirectiveUseCasesRows = [
             {
               component: 'HtmlBlock',
               inputs: {
-                html: '<table class="table table-bordered"><thead><tr><th>Form</th><th>Meaning</th><th>Example</th></tr></thead><tbody><tr><td><code>serviceOrModel.path</code></td><td>Current block\'s instance and path</td><td><code>FormState.firstName</code>, <code>model.age</code></td></tr><tr><td><code>BlockID:serviceOrModel.path</code></td><td>Named block\'s instance and path (block must have <code>id</code>)</td><td><code>PersonForm:FormState.firstName</code>, <code>LoginPage:AuthState.username</code></td></tr></tbody></table><p>Single segment (e.g. <code>FormState</code>) resolves to the instance; with path (e.g. <code>FormState.firstName</code>) the last segment is the property (or signal) on the resolved target.</p>',
+                html: '<table class="doc-table"><thead><tr><th>Form</th><th>Meaning</th><th>Example</th></tr></thead><tbody><tr><td><code>serviceOrModel.path</code></td><td>Current block\'s instance and path</td><td><code>FormState.firstName</code>, <code>model.age</code></td></tr><tr><td><code>BlockID:serviceOrModel.path</code></td><td>Named block\'s instance and path (block must have <code>id</code>)</td><td><code>PersonForm:FormState.firstName</code>, <code>LoginPage:AuthState.username</code></td></tr><tr><td><code>ScopeKey/BlockID:...</code></td><td>Block in a scoped registry (<code>BlockRegistryService</code>)</td><td><code>listScope/ItemCard:FormState.title</code> — see Concepts</td></tr></tbody></table><p>Single segment (e.g. <code>FormState</code>) resolves to the instance; with path (e.g. <code>FormState.firstName</code>) the last segment is the property (or signal) on the resolved target.</p>',
               },
             },
             {

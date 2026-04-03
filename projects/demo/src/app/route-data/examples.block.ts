@@ -16,7 +16,7 @@ export const examplesRoute = {
 export const ExamplePageBlock = {
   component: 'RowLayout',
   id: 'ExamplePage',
-  services: [{ id: 'FormState', scope: 'self' as const }],
+  services: [{ id: 'GeneralModelService', alias: 'FormState', scope: 'self' as const }],
   inputs: {
     rows: [{ columns: [{ blockId: 'AppNav' }] }, ...blockDirectiveUseCasesRows],
   },

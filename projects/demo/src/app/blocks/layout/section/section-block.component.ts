@@ -14,7 +14,6 @@ import { BlockRegistryService } from '../../../core/services/block-registry.serv
   imports: [BlockDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './section-block.component.html',
-  styleUrl: './section-block.component.scss',
 })
 export class SectionBlockComponent {
   readonly title = input<string>('');

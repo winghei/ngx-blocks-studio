@@ -10,7 +10,14 @@ const navRow = {
           path: `/${path}`,
           label: path,
         })),
-        block: { component: 'LinkBlock', inputs: { label: '{{label}}', routerLink: '{{path}}' } },
+        block: {
+          component: 'LinkBlock',
+          inputs: {
+            label: '{{label}}',
+            routerLink: '{{path}}',
+            class: ['app-nav-link'],
+          },
+        },
         trackBy: 'id',
       },
     },
@@ -20,7 +27,7 @@ const navRow = {
 /** Full block template for the app nav (RowLayout + HtmlBlock). Register as 'AppNav' for { blockId: 'AppNav' } reference. */
 export const appNavBlock = {
   component: 'RowLayout',
-  id: 'AppNav',
+
   inputs: {
     rows: [navRow],
   },

@@ -13,7 +13,7 @@ import {
 export function registerDemoBlocks(injector?: Injector): void {
   const serviceRegistry = ServiceRegistry.getInstance();
   serviceRegistry.setInjector(injector ?? inject(Injector));
-  serviceRegistry.register('FormState', ()=> import('../services/form-state.service').then(m => m.FormStateService));
+  serviceRegistry.register('GeneralModelService', ()=> import('../services/general-model.service').then(m => m.GeneralModelService));
 
   const componentRegistry = ComponentRegistry.getInstance();
   componentRegistry.register('RowLayout', () =>

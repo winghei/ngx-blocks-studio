@@ -1,24 +1,13 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, effect, HostBinding, input } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { ChangeDetectionStrategy, Component, HostBinding, input } from '@angular/core';
+import { RouterLink, RouterLinkActive } from '@angular/router';
 
 @Component({
   selector: 'app-link-block',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, RouterLinkActive],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './link-block.component.html',
-  styles: [
-    `
-      .link-block {
-        cursor: pointer;
-        text-decoration: underline;
-        &:hover {
-          opacity: 0.8;
-        }
-      }
-    `,
-  ],
 })
 export class LinkBlockComponent {
   readonly routerLink = input<string | string[]>([]);
@@ -26,11 +15,10 @@ export class LinkBlockComponent {
   readonly label = input<string>('');
   readonly style = input<Record<string, unknown>>({});
 
-  @HostBinding('class') get hostClass(): string {
-    if (typeof this.class() === 'string') {
-      return '';
-    }
-    return this.class().join(' ');
+  linkClasses(): string {
+    const fromInput = this.class();
+    const extra = typeof fromInput === 'string' ? [] : fromInput;
+    return ['link-block', ...extra].join(' ');
   }
 
   @HostBinding('style') get hostStyle(): Record<string, unknown> {

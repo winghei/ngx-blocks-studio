@@ -7,7 +7,6 @@ import { FormsModule } from '@angular/forms';
   imports: [FormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './string-input-block.component.html',
-  styleUrl: './string-input-block.component.scss',
 })
 export class StringInputBlockComponent {
   readonly label = input<string>('');

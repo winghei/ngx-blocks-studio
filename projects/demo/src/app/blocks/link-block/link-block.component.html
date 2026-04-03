@@ -1,3 +1,7 @@
-<span [routerLink]="routerLink()" class="link-block">
+<span
+  [routerLink]="routerLink()"
+  routerLinkActive="demo-link-active"
+  [routerLinkActiveOptions]="{ exact: false }"
+  [class]="linkClasses()">
   {{ label() }}
 </span>

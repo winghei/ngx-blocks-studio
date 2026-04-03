@@ -17,7 +17,6 @@ import { CommonModule } from '@angular/common';
   imports: [BlockDirective, CommonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './block-host.component.html',
-  styleUrl: './block-host.component.scss',
 })
 export class BlockHostComponent {
   private readonly route = inject(ActivatedRoute);

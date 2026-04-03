@@ -6,7 +6,7 @@
 const personFormBlock = {
   component: 'RowLayout',
   id: 'PersonForm',
-  services: [{ id: 'FormState' }],
+  services: [{ id: 'GeneralModelService', alias: 'FormState', scope: 'self' as const }],
 
   inputs: {
     rows: [
@@ -53,12 +53,10 @@ const personFormBlock = {
               min: 0,
               max: 120,
             },
-            services: [{ id: 'FormState', scope: 'self' as const }],
+            services: [{ id: 'GeneralModelService', alias: 'FormState', scope: 'self' as const }],
             outputs: {
               valueChange: {
-                type: 'reference' as const,
-                reference: 'FormState',
-                method: 'alert',
+                ref: 'FormState.alert',
                 params: ['Age changed to {{value}}'],
               },
             },
@@ -84,11 +82,7 @@ const personFormBlock = {
               max: 120,
             },
             outputs: {
-              valueChange: {
-                type: 'reference' as const,
-                reference: 'PersonForm:FormState.age',
-                method: 'set',
-              },
+              valueChange: 'PersonForm:FormState.age.set',
             },
           },
         ],

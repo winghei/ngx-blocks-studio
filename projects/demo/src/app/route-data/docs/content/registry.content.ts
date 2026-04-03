@@ -26,7 +26,7 @@ export const registryRows = [
             {
               component: 'HtmlBlock',
               inputs: {
-                html: '<p class="p-2 bg-light border rounded">Rendered via <code>ComponentRegistry.get(\'HtmlBlock\')</code> from description <code>{ component: \'HtmlBlock\', inputs: { html: \'...\' } }</code>.</p>',
+                html: '<p class="doc-surface">Rendered via <code>ComponentRegistry.get(\'HtmlBlock\')</code> from description <code>{ component: \'HtmlBlock\', inputs: { html: \'...\' } }</code>.</p>',
               },
             },
           ],

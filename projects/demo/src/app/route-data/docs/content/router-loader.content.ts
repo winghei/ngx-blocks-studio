@@ -26,7 +26,7 @@ export const routerLoaderRows = [
             {
               component: 'HtmlBlock',
               inputs: {
-                html: '<pre class="p-2 bg-light border rounded mb-0"><code>// Minimal route shape (this docs route):\n{\n  path: \'docs\',\n  component: \'BlockHost\',\n  title: \'Documentation\',\n  data: { block: docsBlock, model: { ... } }\n}</code></pre>',
+                html: '<pre class="doc-snippet doc-snippet--flush"><code>// Minimal route shape (this docs route):\n{\n  path: \'docs\',\n  component: \'BlockHost\',\n  title: \'Documentation\',\n  data: { block: docsBlock, model: { ... } }\n}</code></pre>',
               },
             },
           ],

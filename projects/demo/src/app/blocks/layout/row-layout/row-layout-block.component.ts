@@ -19,7 +19,6 @@ export interface RowColumn {
   imports: [BlockDirective, CommonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './row-layout-block.component.html',
-  styleUrl: './row-layout-block.component.scss',
 })
 export class RowLayoutBlockComponent {
   readonly rows = input<RowColumn[]>([]);

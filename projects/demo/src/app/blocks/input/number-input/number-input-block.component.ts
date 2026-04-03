@@ -13,7 +13,6 @@ import { FormsModule } from '@angular/forms';
   imports: [FormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './number-input-block.component.html',
-  styleUrl: './number-input-block.component.scss',
 })
 export class NumberInputBlockComponent {
   readonly label = input<string>('');

@@ -32,7 +32,7 @@ export const blockLoaderRows = [
                       {
                         component: 'HtmlBlock',
                         inputs: {
-                          html: '<p class="p-2 border rounded">Full description: <code>{ component: \'HtmlBlock\', inputs: { html: \'...\' } }</code>. No registry lookup.</p>',
+                          html: '<p class="doc-surface">Full description: <code>{ component: \'HtmlBlock\', inputs: { html: \'...\' } }</code>. No registry lookup.</p>',
                         },
                       },
                       {
@@ -62,7 +62,7 @@ export const blockLoaderRows = [
             {
               component: 'HtmlBlock',
               inputs: {
-                html: '<p><strong>Property</strong> · <strong>Type</strong> · <strong>Description</strong></p><ul><li><code>component</code> (string, required for full desc) – Component key resolved via ComponentRegistry.</li><li><code>id</code> (string, optional) – Unique id for this block; used for registry and cross-block refs.</li><li><code>services</code> – Root-scoped (string or <code>{ id, alias? }</code>) or self-scoped <code>{ id, scope: \'self\', alias? }</code>.</li><li><code>directives</code> – Directive keys (DirectiveRegistry); applied as host directives.</li><li><code>inputs</code> – Record of inputs for component and/or host directives.</li><li><code>outputs</code> – Output names → handler config (reference or outputHandlers).</li></ul>',
+                html: '<p><strong>Property</strong> · <strong>Type</strong> · <strong>Description</strong></p><ul><li><code>component</code> (string, required for full desc) – Component key resolved via ComponentRegistry.</li><li><code>id</code> (string, optional) – Unique id for this block; used for registry and cross-block refs.</li><li><code>services</code> – Root-scoped (string or <code>{ id, alias? }</code>) or self-scoped <code>{ id, scope: \'self\', alias? }</code>.</li><li><code>directives</code> – Directive keys (DirectiveRegistry); applied as host directives.</li><li><code>inputs</code> – Record of inputs for component and/or host directives.</li><li><code>outputs</code> – Output names → callable ref <strong>string</strong> or <code>OutputCallObject</code> (<code>ref</code> plus optional <code>when</code>, <code>params</code>, <code>then</code>, <code>onError</code>).</li></ul>',
               },
             },
           ],
@@ -111,12 +111,12 @@ export const blockLoaderRows = [
       {
         component: 'Section',
         inputs: {
-          title: 'Outputs as reference',
+          title: 'Outputs (callable refs)',
           children: [
             {
               component: 'HtmlBlock',
               inputs: {
-                html: '<p>Output value <code>{ type: \'reference\', reference, method, params?, then?, onSuccess?, onError? }</code>. When the output fires, the loader resolves <code>reference</code> (e.g. <code>PersonForm:FormState.age</code>), gets <code>method</code> on that target (e.g. <code>set</code>), and calls it with <code>params</code> or the emitted value. If the method returns a Promise, <code>then</code> / <code>onSuccess</code> / <code>onError</code> are invoked after resolve/reject.</p><p>If the output value is not a reference config, the directive\'s <strong>outputHandlers</strong> map is used (key = output name), or a no-op if absent.</p>',
+                html: '<p>Each output value is a <strong>string</strong> callable ref (e.g. <code>PersonForm:FormState.age.set</code>) or an <code>OutputCallObject</code> with <code>ref</code> and optional <code>when</code>, <code>params</code>, <code>then</code>, <code>onError</code>. The last path segment is the method name; the loader resolves the target and invokes it (if <code>params</code> is omitted, the emitted value is passed). If the call returns a Promise, <code>then</code> / <code>onError</code> run after settle.</p><p>Invalid or missing shapes get a <strong>no-op</strong> handler. There is no <code>outputHandlers</code> map on <code>BlockDirective</code> or <code>load()</code>.</p>',
               },
             },
           ],
