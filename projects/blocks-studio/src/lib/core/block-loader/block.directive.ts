@@ -32,6 +32,14 @@ function getServicesKey(services: BlockDescription['services']): string {
     .join(',');
 }
 
+function safeJsonKey(value: unknown): string {
+  try {
+    return JSON.stringify(value) ?? 'null';
+  } catch {
+    return String(value);
+  }
+}
+
 @Directive({
   selector: '[block]',
   standalone: true,
@@ -43,20 +51,25 @@ export class BlockDirective {
 
   /** Full description, or { id } / { blockId, blockDefinition? } to reuse/override from blockDefinitions. */
   readonly description = input<BlockInput | BlockReference | null>(null);
-  /** Handlers for component outputs; keys match descriptor.outputs. */
-  readonly outputHandlers = input<Record<string, (value: unknown) => void>>({});
   /** Registry for block instances by id; pass from root so nested blocks share it. */
   readonly blockRegistry = input<BlockRegistry | null>(null);
   /** Map id → full description or loader; used when description is a block reference (id/blockId). */
   readonly blockDefinitions = input<Record<string, BlockDefinitionOrLoader> | null>(null);
   /** Model for the block. */
   readonly model = input<Record<string, unknown> | string | undefined>(undefined);
+  /**
+   * Forces a reload when this value changes, even if component/services are the same.
+   * Useful for "same component, different inputs" scenarios like tabs/switch blocks.
+   */
+  readonly reloadKey = input<unknown>(null);
 
   private loadResult: ComponentRef<unknown> | null = null;
   private lastRegistry: BlockRegistry | null = null;
   private lastId: string | null = null;
   private loadedComponent: string | null = null;
   private loadedServicesKey: string | null = null;
+  private loadedReloadKey: unknown = null;
+  private loadedDescKey: string | null = null;
   private loadGeneration = 0;
   /** Invalidates in-flight block-reference resolution when the effect re-runs. */
   private effectRunId = 0;
@@ -67,8 +80,8 @@ export class BlockDirective {
   constructor() {
     effect(() => {
       const desc = this.description();
-      const outputHandlers = this.outputHandlers();
       const inputDefs = this.blockDefinitions();
+      const reloadKey = this.reloadKey();
       const runId = ++this.effectRunId;
 
       if (desc == null) {
@@ -96,13 +109,17 @@ export class BlockDirective {
           data = parsed.data;
         }
         const servicesKey = getServicesKey(data.services);
+        const descKey = safeJsonKey(resolved);
+        const effectiveReloadKey = reloadKey ?? descKey;
 
         // Only clear when the logical description changed (component or services). Avoids
         // clear+reload when the parent passes a new reference with the same content (e.g. BlockFor).
         const mustReload =
           this.loadResult == null ||
           this.loadedComponent !== data.component ||
-          this.loadedServicesKey !== servicesKey;
+          this.loadedServicesKey !== servicesKey ||
+          this.loadedReloadKey !== effectiveReloadKey ||
+          this.loadedDescKey !== descKey;
         if (!mustReload) {
           // Description is logically unchanged (same component + services); no work needed.
           return;
@@ -116,7 +133,6 @@ export class BlockDirective {
         const generation = ++this.loadGeneration;
         this.loader
           .load(resolved, this.viewContainerRef, this.model, {
-            outputHandlers: Object.keys(outputHandlers).length > 0 ? outputHandlers : undefined,
             registry,
             blockDefinitions: inputDefs ?? undefined,
           })
@@ -125,6 +141,8 @@ export class BlockDirective {
             this.loadResult = result;
             this.loadedComponent = data.component;
             this.loadedServicesKey = servicesKey;
+            this.loadedReloadKey = effectiveReloadKey;
+            this.loadedDescKey = descKey;
           })
           .catch((err: unknown) => {
             if (generation !== this.loadGeneration) return;
@@ -163,6 +181,8 @@ export class BlockDirective {
       this.loadResult = null;
       this.loadedComponent = null;
       this.loadedServicesKey = null;
+      this.loadedReloadKey = null;
+      this.loadedDescKey = null;
     }
   }
 }

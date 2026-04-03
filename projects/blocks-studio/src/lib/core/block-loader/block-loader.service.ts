@@ -1,12 +1,14 @@
 import {
   ComponentRef,
   Injectable,
+  inject,
   Injector,
   Type,
   ViewContainerRef,
   WritableSignal,
   inputBinding,
   isSignal,
+  linkedSignal,
   outputBinding,
   twoWayBinding,
   type Signal,
@@ -34,9 +36,10 @@ import {
   type BlockRegistry,
 } from './block-registry';
 import { ResolverContext, getRefSignal } from './ref-resolver';
+import { BlockRegistryService } from '../services/block-registry.service';
+import { resolveTemplateString } from './template-interpolation';
 
 export interface BlockLoadOptions {
-  outputHandlers?: Record<string, (value: unknown) => void>;
   registry?: BlockRegistry;
   /** Map of block id → full description or loader; used when description is a block reference. */
   blockDefinitions?: Record<string, BlockDefinitionOrLoader>;
@@ -64,13 +67,19 @@ function createInputBindingsWithWarnings(
 
   const twoWayBindingsArray = Array.from(twoWayKeys)
     .filter((key) => {
-      if (resolvedTwoWay[key] == null) {
+      if (resolvedTwoWay[key] == null && resolvedInputs[key] == null) {
         return false;
       }
       return true;
     })
     // resolvedTwoWay is guaranteed non-null after the filter.
-    .map((key) => twoWayBinding(key, resolvedTwoWay[key] as WritableSignal<unknown>));
+    .map((key) =>
+      twoWayBinding(
+        key,
+        (resolvedTwoWay[key] ??
+          linkedSignal(() => resolvedInputs[key]?.())) as WritableSignal<unknown>,
+      ),
+    );
 
   const outputBindingsArray = Array.from(outputKeys)
     .filter((key) => {
@@ -84,11 +93,20 @@ function createInputBindingsWithWarnings(
   return [...inputBindingsArray, ...twoWayBindingsArray, ...outputBindingsArray];
 }
 
+/** JSON-like objects only — skip class instances, Date, Map, etc. */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== 'object') return false;
+  if (Array.isArray(value)) return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === null || proto === Object.prototype;
+}
+
 @Injectable({ providedIn: 'root' })
 export class BlockLoaderService {
   private readonly componentRegistry = ComponentRegistry.getInstance();
   private readonly directiveRegistry = DirectiveRegistry.getInstance();
   private readonly serviceRegistry = ServiceRegistry.getInstance();
+  private readonly blockRegistryService = inject(BlockRegistryService);
 
   async load(
     description: BlockInput | BlockReference,
@@ -107,7 +125,7 @@ export class BlockLoaderService {
     }
     const desc = parsed.data;
     const registry = options?.registry ?? new BlockRegistryImpl();
-    if (desc.id != null && desc.id !== '' && registry.has(desc.id)) {
+    if (desc.id != null && desc.id !== '' && registry.hasLocal(desc.id)) {
       throw new Error(`Block id "${desc.id}" is already registered.`);
     }
 
@@ -117,11 +135,12 @@ export class BlockLoaderService {
     }
 
     //... Generate and new resolver context
-    const blockInstance: CurrentInstance = {};
+    const blockInstance: CurrentInstance = { services: {} };
     const ctx: ResolverContext = {
       registry,
       currentBlockId: desc.id ?? undefined,
       currentInstance: blockInstance,
+      getRegistryForScope: (scopeKey: string) => this.blockRegistryService.getRegistryForScope(scopeKey),
     };
 
     //... Resolve model for the block
@@ -159,7 +178,6 @@ export class BlockLoaderService {
       ...componentMetadata.twoWay,
       ...directivesMetadata.map((d) => Array.from(d.metadata.twoWay)).flat(),
     ]);
-
 
     // Initial bindings for component; directive inputs are applied separately.
     const initialResolved = resolveBlockInputsAndOutputs(
@@ -213,6 +231,9 @@ export class BlockLoaderService {
     resolvedModel: Signal<unknown | undefined> | undefined,
     model: Signal<unknown | undefined>,
   ): Promise<void> {
+    // services are stored under `blockInstance.services`, so `model` no longer collides structurally,
+    // but `model` is a reserved ref keyword (`BlockId:model...`). Warn to avoid confusion.
+    const reservedAliases = new Set(['services', 'model']);
     const services = normalizeServices(desc.services);
     const selfServices = services.filter(
       (s): s is { id: string; scope: 'self'; alias?: string } =>
@@ -237,7 +258,13 @@ export class BlockLoaderService {
       if (serviceType) {
         const svc = viewContainerRef.injector.get(serviceType as Type<unknown>, null);
 
-        if (svc != null) blockInstance[alias] = svc;
+        if (reservedAliases.has(alias)) {
+          console.warn(
+            `Service alias "${alias}" is reserved and conflicts with ref keywords; skipping assignment.`,
+          );
+        } else if (svc != null) {
+          blockInstance.services[alias] = svc;
+        }
         // if the service is not found, add it to the selfServices array
         else selfServices.push({ id: alias, scope: 'self' });
       }
@@ -259,14 +286,21 @@ export class BlockLoaderService {
           self: true,
         });
         if (svc != null) {
-          blockInstance[alias] = svc;
+          if (reservedAliases.has(alias)) {
+            console.warn(
+              `Service alias "${alias}" is reserved and conflicts with ref keywords; skipping assignment.`,
+            );
+          } else {
+            blockInstance.services[alias] = svc;
+          }
           if (
             model() != null &&
             resolvedModel != null &&
             'model' in (svc as Record<string, unknown>) &&
             isSignal((svc as { model?: unknown }).model)
           ) {
-            (svc as { model: Signal<unknown | undefined> }).model = resolvedModel;
+            (svc as { model: WritableSignal<any | undefined> }).model.set(resolvedModel);
+            (svc as { setModel?: () => void }).setModel?.();
           }
         }
       }
@@ -300,20 +334,35 @@ export class BlockLoaderService {
   private resolveContextModel(ctx: ResolverContext, blockModel: Signal<unknown | undefined>): void {
     const directiveModel = blockModel();
     const blockInstance = ctx.currentInstance;
+    const templateCtx = this.withModelOverrideContext(ctx, blockModel);
     let blockInstanceModel: Signal<unknown | undefined> | undefined;
     if (typeof directiveModel === 'string') {
-      const refPath = directiveModel;
-      if (refPath.length > 0) {
-        const refSignal = getRefSignal(refPath, ctx);
-        if (refSignal != null) {
-          blockInstanceModel = refSignal;
-        } else {
-          console.warn(`Model ref "${directiveModel}" not found.`);
-          return;
+      const interpolated = resolveTemplateString(directiveModel, templateCtx);
+      if (typeof interpolated !== 'string') {
+        blockInstanceModel = linkedSignal(() => resolveTemplateString(directiveModel, templateCtx));
+      } else {
+        const refPath = interpolated.trim();
+        if (refPath.length > 0) {
+          const refSignal = getRefSignal(refPath, ctx);
+          if (refSignal != null) {
+            blockInstanceModel = refSignal;
+          } else {
+            blockInstanceModel = linkedSignal(() =>
+              resolveTemplateString(directiveModel, templateCtx),
+            );
+          }
         }
       }
     } else {
-      blockInstanceModel = blockModel;
+      const hasTemplates = this.valueContainsTemplate(directiveModel);
+      blockInstanceModel = hasTemplates
+        ? linkedSignal(() =>
+            this.resolveNestedModelTemplates(
+              blockModel(),
+              this.withModelOverrideContext(ctx, blockModel),
+            ),
+          )
+        : blockModel;
     }
 
     if (blockInstanceModel != null) {
@@ -324,5 +373,60 @@ export class BlockLoaderService {
       }
       blockInstance.model = blockInstanceModel;
     }
+  }
+
+  private valueContainsTemplate(value: unknown, visited: WeakSet<object> = new WeakSet()): boolean {
+    if (typeof value === 'string') {
+      return value.includes('{{') && value.includes('}}');
+    }
+    if (Array.isArray(value)) {
+      return value.some((item) => this.valueContainsTemplate(item, visited));
+    }
+    if (value != null && typeof value === 'object') {
+      if (!isPlainObject(value)) return false;
+      if (visited.has(value)) return false;
+      visited.add(value);
+      return Object.values(value).some((item) => this.valueContainsTemplate(item, visited));
+    }
+    return false;
+  }
+
+  private resolveNestedModelTemplates(
+    value: unknown,
+    ctx: ResolverContext,
+    visited: WeakSet<object> = new WeakSet(),
+  ): unknown {
+    if (typeof value === 'string') {
+      return resolveTemplateString(value, ctx);
+    }
+    if (Array.isArray(value)) {
+      return value.map((item) => this.resolveNestedModelTemplates(item, ctx, visited));
+    }
+    if (value != null && typeof value === 'object') {
+      if (!isPlainObject(value)) return value;
+      if (visited.has(value)) return value;
+      visited.add(value);
+      return Object.fromEntries(
+        Object.entries(value).map(([key, item]) => [
+          key,
+          this.resolveNestedModelTemplates(item, ctx, visited),
+        ]),
+      );
+    }
+    return value;
+  }
+
+  private withModelOverrideContext(
+    ctx: ResolverContext,
+    model: Signal<unknown | undefined>,
+  ): ResolverContext {
+    if (ctx.currentInstance == null) return ctx;
+    return {
+      ...ctx,
+      currentInstance: {
+        ...ctx.currentInstance,
+        model,
+      },
+    };
   }
 }

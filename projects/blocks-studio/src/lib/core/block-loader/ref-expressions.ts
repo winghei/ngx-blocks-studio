@@ -6,6 +6,8 @@ const READONLY_REF_RE = /\{\{([^}]+)\}\}/g;
 const TWOWAY_REF_RE = /^\[\(([^)]+)\)\]$/;
 
 export interface ParsedRefPath {
+  /** Optional scope key prefix for cross-scope refs: `ScopeKey/BlockId:...` */
+  scopeKey?: string;
   blockId?: string;
   serviceOrModel: string;
   pathParts: string[];
@@ -27,10 +29,17 @@ function parseRefPathUncached(refPath: string): ParsedRefPath {
   if (colonIndex !== -1) {
     const prefix = trimmed.slice(0, colonIndex).trim();
     const rest = trimmed.slice(colonIndex + 1).trim();
+    // Prefix may be "BlockID" or "ScopeKey/BlockID" (scope key may contain '/').
     // BlockID must not contain a dot (so "BlockID:model.info.title" is valid; "a:b:c" → prefix "a", rest "b:c")
     if (prefix.length > 0 && !prefix.includes('.')) {
+      const lastSlash = prefix.lastIndexOf('/');
+      const scopeKey = lastSlash !== -1 ? prefix.slice(0, lastSlash) : undefined;
+      const blockId = lastSlash !== -1 ? prefix.slice(lastSlash + 1) : prefix;
+      if (!blockId) {
+        throw new Error(`Invalid block id: ${prefix}`);
+      }
       const pathParts = rest.split('.').filter(Boolean);
-      return { blockId: prefix, serviceOrModel: pathParts[0], pathParts: pathParts.slice(1) };
+      return { scopeKey, blockId, serviceOrModel: pathParts[0], pathParts: pathParts.slice(1) };
     } else {
       throw new Error(`Invalid block id: ${prefix}`);
     }
@@ -90,8 +99,19 @@ export function isInvalidTwoWayMix(value: unknown): value is string {
 export function classifyTwoWayString(value: unknown): 'two-way' | 'invalid-mix' | 'none' {
   if (typeof value !== 'string') return 'none';
   const s = value.trim();
-  if (!s.includes('[(') && !s.includes(')]')) return 'none';
-  return TWOWAY_REF_RE.test(s) ? 'two-way' : 'invalid-mix';
+  if (TWOWAY_REF_RE.test(s)) return 'two-way';
+
+  const hasOpen = s.includes('[(');
+  const hasClose = s.includes(')]');
+  if (!hasOpen && !hasClose) return 'none';
+
+  // Only treat as invalid mix when the string looks like an attempted two-way ref
+  // wrapper, not when it contains ")]" from normal indexing/calls inside templates.
+  if ((hasOpen && hasClose) || s.startsWith('[(') || s.endsWith(')]')) {
+    return 'invalid-mix';
+  }
+
+  return 'none';
 }
 
 export function parseTwoWayRef(value: string): string | null {

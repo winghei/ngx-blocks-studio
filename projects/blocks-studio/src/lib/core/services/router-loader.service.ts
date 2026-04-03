@@ -72,6 +72,7 @@ export class RouteLoader {
   async loadRoutes(config: RouteConfigs): Promise<void> {
     this._configPath.set('');
     this._routeConfigFile.set(config);
+
     await this.updateRoutes();
   }
 

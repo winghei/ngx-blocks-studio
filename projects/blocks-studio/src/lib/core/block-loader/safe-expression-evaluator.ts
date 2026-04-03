@@ -9,6 +9,8 @@ type TokenType =
   | 'operator'
   | 'lparen'
   | 'rparen'
+  | 'lbracket'
+  | 'rbracket'
   | 'dot'
   | 'comma'
   | 'question'
@@ -24,6 +26,7 @@ type Expr =
   | { kind: 'literal'; value: unknown }
   | { kind: 'identifier'; name: string }
   | { kind: 'member'; object: Expr; property: string }
+  | { kind: 'index'; object: Expr; index: Expr }
   | { kind: 'call'; callee: Expr; args: Expr[] }
   | { kind: 'unary'; op: string; argument: Expr }
   | { kind: 'binary'; op: string; left: Expr; right: Expr }
@@ -32,7 +35,7 @@ type Expr =
 interface EvalContext {
   payload: unknown;
   model: Record<string, unknown>;
-  currentInstance: Record<string, unknown> | undefined;
+  services: Record<string, unknown> | undefined;
   resolveRefValue: (ref: string) => unknown;
 }
 
@@ -58,6 +61,12 @@ function tokenize(input: string): Token[] {
     }
     if (ch === ')') {
       tokens.push({ type: 'rparen', value: ch }); i++; continue;
+    }
+    if (ch === '[') {
+      tokens.push({ type: 'lbracket', value: ch }); i++; continue;
+    }
+    if (ch === ']') {
+      tokens.push({ type: 'rbracket', value: ch }); i++; continue;
     }
     if (ch === '.') {
       tokens.push({ type: 'dot', value: ch }); i++; continue;
@@ -213,6 +222,13 @@ class Parser {
         expr = { kind: 'member', object: expr, property: id.value };
         continue;
       }
+      if (this.peek().type === 'lbracket') {
+        this.next();
+        const index = this.parseConditional();
+        this.expect('rbracket');
+        expr = { kind: 'index', object: expr, index };
+        continue;
+      }
       if (this.peek().type === 'lparen') {
         this.next();
         const args: Expr[] = [];
@@ -255,21 +271,55 @@ function evalExpr(expr: Expr, ctx: EvalContext): unknown {
         return ctx.payload;
       }
       if (expr.name in ctx.model) return ctx.model[expr.name];
-      if (ctx.currentInstance != null && expr.name in ctx.currentInstance) return ctx.currentInstance[expr.name];
+      if (ctx.services != null && expr.name in ctx.services) return ctx.services[expr.name];
       return undefined;
     case 'member': {
-      const obj = evalExpr(expr.object, ctx);
+      let obj = evalExpr(expr.object, ctx);
+      // Support expressions like ref("Block:model").title where ref(...) can return a signal/function.
+      if (
+        expr.object.kind === 'call' &&
+        expr.object.callee.kind === 'identifier' &&
+        expr.object.callee.name === 'ref' &&
+        typeof obj === 'function'
+      ) {
+        obj = (obj as () => unknown)();
+      }
       if (obj == null || typeof obj !== 'object') return undefined;
       return (obj as Record<string, unknown>)[expr.property];
+    }
+    case 'index': {
+      let obj = evalExpr(expr.object, ctx);
+      if (
+        expr.object.kind === 'call' &&
+        expr.object.callee.kind === 'identifier' &&
+        expr.object.callee.name === 'ref' &&
+        typeof obj === 'function'
+      ) {
+        obj = (obj as () => unknown)();
+      }
+      if (obj == null || (typeof obj !== 'object' && typeof obj !== 'function')) return undefined;
+      const key = evalExpr(expr.index, ctx);
+      if (typeof key !== 'string' && typeof key !== 'number') return undefined;
+      return (obj as Record<string | number, unknown>)[key];
     }
     case 'call': {
       if (expr.callee.kind !== 'identifier' || expr.callee.name !== 'ref') {
         throw new Error('Only ref(...) calls are allowed');
       }
-      if (expr.args.length !== 1) throw new Error('ref(...) requires one argument');
+      if (expr.args.length < 1 || expr.args.length > 2) {
+        throw new Error('ref(...) requires one or two arguments');
+      }
       const arg = evalExpr(expr.args[0], ctx);
       if (typeof arg !== 'string') return undefined;
-      return ctx.resolveRefValue(arg);
+      const resolved = ctx.resolveRefValue(arg);
+      const shouldInvoke =
+        expr.args.length === 2
+          ? evalExpr(expr.args[1], ctx) === true
+          : false;
+      if (shouldInvoke && typeof resolved === 'function') {
+        return (resolved as () => unknown)();
+      }
+      return resolved;
     }
     case 'unary': {
       const v = evalExpr(expr.argument, ctx);
@@ -312,10 +362,11 @@ export function evaluateSafeExpression(
   resolveRefValue: (ref: string, ctx: ResolverContext) => unknown
 ): unknown {
   const ast = new Parser(tokenize(expression)).parse();
+
   return evalExpr(ast, {
     payload,
     model: (resolverContext.currentInstance?.model?.() ?? {}) as Record<string, unknown>,
-    currentInstance: resolverContext.currentInstance as Record<string, unknown> | undefined,
+    services: resolverContext.currentInstance?.services,
     resolveRefValue: (ref: string) => resolveRefValue(ref, resolverContext),
   });
 }

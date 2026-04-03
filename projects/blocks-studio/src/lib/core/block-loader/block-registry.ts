@@ -2,7 +2,11 @@ import type { Signal } from '@angular/core';
 
 export interface CurrentInstance {
   model?: Signal<unknown>;
-  [key: string]: unknown;
+  /**
+   * Services/state exposed by name for ref/expression resolution.
+   * (Kept separate from `model` to avoid alias collisions.)
+   */
+  services: Record<string, unknown>;
 }
 
 /**
@@ -23,7 +27,41 @@ export interface BlockRegistry {
   register(id: string, handle: BlockInstanceHandle): void;
   unregister(id: string): void;
   get(id: string): BlockInstanceHandle | undefined;
+  /** True if id resolves in this registry or any parent (for refs). */
   has(id: string): boolean;
+  /** True only if id is registered on this registry layer (not parent). Used before register. */
+  hasLocal(id: string): boolean;
+}
+
+/**
+ * Registry that chains lookups to a parent registry (lexical scoping).
+ * Registration/unregistration always happens on the local registry only.
+ */
+export class ChainedBlockRegistry implements BlockRegistry {
+  constructor(
+    private readonly local: BlockRegistry,
+    private readonly parent: BlockRegistry | null,
+  ) {}
+
+  register(id: string, handle: BlockInstanceHandle): void {
+    this.local.register(id, handle);
+  }
+
+  unregister(id: string): void {
+    this.local.unregister(id);
+  }
+
+  get(id: string): BlockInstanceHandle | undefined {
+    return this.local.get(id) ?? this.parent?.get(id);
+  }
+
+  has(id: string): boolean {
+    return this.local.has(id) || (this.parent?.has(id) ?? false);
+  }
+
+  hasLocal(id: string): boolean {
+    return this.local.hasLocal(id);
+  }
 }
 
 /**
@@ -48,6 +86,10 @@ export class BlockRegistryImpl implements BlockRegistry {
   }
 
   has(id: string): boolean {
+    return this.map.has(id);
+  }
+
+  hasLocal(id: string): boolean {
     return this.map.has(id);
   }
 }

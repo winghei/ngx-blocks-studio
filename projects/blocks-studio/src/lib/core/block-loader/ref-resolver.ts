@@ -1,7 +1,6 @@
-import { computed, isSignal, type Signal } from '@angular/core';
+import { computed, isSignal, signal, type Signal } from '@angular/core';
 import type { BlockRegistry, CurrentInstance } from './block-registry';
 import { parseRefPath } from './ref-expressions';
-
 
 export interface ResolverContext {
   registry: BlockRegistry;
@@ -9,6 +8,17 @@ export interface ResolverContext {
   currentBlockId?: string;
   /** Current block's instance (services/state by name). */
   currentInstance?: CurrentInstance;
+  /** Optional scope-key → registry lookup for explicit `ScopeKey/BlockId:...` refs. */
+  getRegistryForScope?: (scopeKey: string) => BlockRegistry | null;
+}
+
+const WARN_CACHE_MAX = 200;
+const warnCache = new Set<string>();
+function warnOnce(msg: string): void {
+  if (warnCache.has(msg)) return;
+  if (warnCache.size >= WARN_CACHE_MAX) warnCache.clear();
+  warnCache.add(msg);
+  console.warn(msg);
 }
 
 /**
@@ -22,45 +32,98 @@ export function resolveRefPath(
   ctx: ResolverContext,
 ): { target: unknown; path: string[] } | null {
   const parsed = parseRefPath(refPath);
-  const { blockId, serviceOrModel, pathParts } = parsed;
+  const { scopeKey, blockId, serviceOrModel, pathParts } = parsed;
 
   if (!serviceOrModel) {
     return null;
   }
 
+  const registry =
+    scopeKey != null
+      ? (ctx.getRegistryForScope?.(scopeKey) ?? null)
+      : ctx.registry;
+  if (scopeKey != null && registry == null) {
+    warnOnce(`Ref "${refPath}" could not resolve scope "${scopeKey}".`);
+    return null;
+  }
+
   let instance: CurrentInstance | undefined;
   if (blockId != null) {
-    const handle = ctx.registry.get(blockId);
-    if (!handle) return null;
-    instance = handle.instance;
+    // Allow self-references during load before the current block is registered.
+    // Important: only shortcut when there is no explicit scope. Scoped refs must resolve through that scope's registry.
+    if (
+      scopeKey == null &&
+      ctx.currentBlockId != null &&
+      blockId === ctx.currentBlockId &&
+      ctx.currentInstance != null
+    ) {
+      instance = ctx.currentInstance;
+    } else {
+      const handle = (registry ?? ctx.registry).get(blockId);
+      if (!handle) {
+        warnOnce(`Ref "${refPath}" could not resolve block id "${blockId}".`);
+        return null;
+      }
+      instance = handle.instance;
+    }
   } else {
-    
     instance = ctx.currentInstance ?? undefined;
   }
-  
+
   if (instance == null) return null;
 
-
-  const service = instance[serviceOrModel];
-
-  if (!service) return null;
-  if (pathParts.length === 0) {
-    return { target: service, path: [] };
+  // Special-case: `model` refers to the instance model signal (not a service).
+  if (serviceOrModel === 'model') {
+    const base = instance.model;
+    if (!base) {
+      warnOnce(`Ref "${refPath}" could not resolve model (no instance model).`);
+      return null;
+    }
+    if (pathParts.length === 0) {
+      return { target: base, path: [] };
+    }
+    let current: unknown = base;
+    for (let i = 0; i < pathParts.length - 1; i++) {
+      if (current != null && isSignal(current)) {
+        current = (current as Signal<unknown>)();
+      }
+      if (current == null || typeof current !== 'object') return null;
+      current = (current as Record<string, unknown>)[pathParts[i]];
+    }
+    return { target: current, path: pathParts.slice(-1) };
   }
 
-  let current: unknown = service;
-  for (let i = 0; i < pathParts.length - 1; i++) {
+  const service = instance.services?.[serviceOrModel];
+
+  // If the named service/model is not present on the instance, fall back to `model.<serviceOrModel>...`
+  // (e.g. `Kanban:title` -> `Kanban.model.title`) but only for named-block refs.
+  const shouldModelFallback = blockId != null && service == null && instance.model != null;
+  const base = shouldModelFallback ? instance.model : service;
+  const effectiveParts = shouldModelFallback ? [serviceOrModel, ...pathParts] : pathParts;
+
+  if (!base) {
+    warnOnce(`Ref "${refPath}" could not resolve service/model "${serviceOrModel}".`);
+    return null;
+  }
+  if (effectiveParts.length === 0) {
+    return { target: base, path: [] };
+  }
+
+  let current: unknown = base;
+
+  for (let i = 0; i < effectiveParts.length - 1; i++) {
     // Unwrap signals at each segment so model.item.a works even when
     // model or item are signals.
     if (current != null && isSignal(current)) {
       current = (current as Signal<unknown>)();
     }
     if (current == null || typeof current !== 'object') return null;
-    current = (current as Record<string, unknown>)[pathParts[i]];
+    current = (current as Record<string, unknown>)[effectiveParts[i]];
   }
+
   // Do not unwrap the final segment here; leave it to getRefValue / setRefValue so they
   // can consistently handle signals and functions at the leaf.
-  return { target: current, path: pathParts.slice(-1) };
+  return { target: current, path: effectiveParts.slice(-1) };
 }
 
 /**
@@ -98,9 +161,11 @@ export function refPathResolvesToSignal(refPath: string, ctx: ResolverContext): 
  */
 export function getRefValue(refPath: string, ctx: ResolverContext): unknown {
   const resolved = resolveRefPath(refPath, ctx);
+
   if (resolved == null || resolved.path.length === 0) {
     return resolved?.target;
   }
+
   let obj: unknown = resolved.target;
   // Unwrap Signal so we can read properties (e.g. PersonForm:model.firstName)
   if (obj != null && isSignal(obj)) {
@@ -119,15 +184,26 @@ export function getRefValue(refPath: string, ctx: ResolverContext): unknown {
 
 export function getRefSignal(refPath: string, ctx: ResolverContext): Signal<unknown> | undefined {
   const resolved = resolveRefPath(refPath, ctx);
+
   if (resolved == null) return undefined;
-  const val =
-    resolved.path.length === 0
-      ? resolved.target
-      : (resolved.target as Record<string, unknown>)?.[resolved.path[0]];
-  if (val != null && isSignal(val)) {
-    return val as Signal<unknown>;
+
+  let value: unknown;
+  if (resolved.path.length === 0) {
+    value = resolved.target;
+  } else {
+    if (isSignal(resolved.target)) {
+      const signalValue = resolved.target();
+
+      value =
+        signalValue != null && typeof signalValue === 'object'
+          ? (signalValue as Record<string, unknown>)[resolved.path[0]]
+          : undefined;
+    } else {
+      value = (resolved.target as Record<string, unknown>)?.[resolved.path[0]];
+    }
   }
-  return undefined;
+
+  return value != null && isSignal(value) ? (value as Signal<unknown>) : undefined;
 }
 
 /**

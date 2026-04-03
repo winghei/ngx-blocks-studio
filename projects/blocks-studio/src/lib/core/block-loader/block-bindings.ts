@@ -1,15 +1,9 @@
 import { computed, isWritableSignal, linkedSignal, signal, WritableSignal } from '@angular/core';
 import { BlockDescription } from './block-description.schema';
-import { INTERPOLATE_MAX_PLACEHOLDERS } from './block-loader.service';
 import { createOutputHandler } from './output-reference';
 import { classifyTwoWayString, parseTwoWayRef } from './ref-expressions';
-import {
-  getRefSignal,
-  getRefValue,
-  getValueByPath,
-  ResolverContext,
-  resolveRefPath,
-} from './ref-resolver';
+import { getRefSignal, ResolverContext } from './ref-resolver';
+import { looksLikeFlowTemplate, resolveTemplateString } from './template-interpolation';
 
 export function getBlockInputsAndOutputs(componentOrDirectives: any[]): {
   inputs: Set<string>;
@@ -60,7 +54,6 @@ export function resolveBlockInputsAndOutputs(
   outputKeys: Set<string>,
   twoWayKeys: Set<string>,
   ctx: ResolverContext,
-  outputHandlers?: Record<string, (value: unknown) => void>,
 ) {
   const resolvedInputs: Record<string, () => unknown> = {};
   const resolvedOutputs: Record<string, (value: unknown) => void> = {};
@@ -95,9 +88,10 @@ export function resolveBlockInputsAndOutputs(
           const valueSignal = getRefSignal(refPath, ctx);
 
           if (twoWayKeys.has(key))
-           
             if (!isWritableSignal(valueSignal)) {
-              console.warn(`Input "${key}" is a two-way ref but is not a writable signal.`);
+              console.warn(
+                `Input "${key}" of ref "${refPath}" is a two-way ref but is not a writable signal. Path might not be resolved correctly.`,
+              );
               resolvedTwoWay[key] = linkedSignal(() => valueSignal?.());
             } else {
               resolvedTwoWay[key] = valueSignal;
@@ -111,15 +105,33 @@ export function resolveBlockInputsAndOutputs(
       }
 
       const str = value as string;
-      if (
+      const hasMustache =
         typeof value === 'string' &&
         str.indexOf('{{') !== -1 &&
-        str.indexOf('}}', str.indexOf('{{')) !== -1
-      ) {
-        resolvedInputs[key] = computed(() => interpolateTemplateMixed(str, ctx));
+        str.indexOf('}}', str.indexOf('{{')) !== -1;
+      const hasFlow = typeof value === 'string' && looksLikeFlowTemplate(str);
+      if (hasMustache || hasFlow) {
+        resolvedInputs[key] = computed(() =>
+          resolveTemplateString(str, ctx, undefined, { escapeFlowRefs: true }),
+        );
         continue;
       }
     }
+
+    if (Array.isArray(value)) {
+      resolvedInputs[key] = computed(() =>
+        value.map((item) => {
+          if (typeof item === 'string') {
+            return resolveTemplateString(item, ctx, undefined, { escapeFlowRefs: true });
+          }
+
+          return item;
+        }),
+      );
+
+      continue;
+    }
+
     if (inputKeys.has(key)) resolvedInputs[key] = () => value;
     if (twoWayKeys.has(key)) resolvedTwoWay[key] = signal(value);
   }
@@ -132,56 +144,8 @@ export function resolveBlockInputsAndOutputs(
       continue;
     }
 
-    resolvedOutputs[key] = createOutputHandler(value, key, ctx, outputHandlers);
+    resolvedOutputs[key] = createOutputHandler(value, key, ctx);
   }
 
   return { resolvedInputs, resolvedOutputs, resolvedTwoWay };
-}
-
-function interpolateTemplateMixed(template: string, ctx: ResolverContext): unknown {
-  const trimmed = template.trim();
-  if (trimmed.startsWith('{{')) {
-    const close = trimmed.indexOf('}}', 2);
-    if (
-      close !== -1 &&
-      close + 2 === trimmed.length &&
-      trimmed.indexOf('{{', 2) === -1
-    ) {
-      const ref = trimmed.slice(2, close).trim();
-      const resolved = resolveRefPath(ref, ctx);
-      const val = ref
-        ? resolved != null
-          ? getRefValue(ref, ctx)
-          : getValueByPath(ctx.currentInstance?.model?.() ?? {}, ref)
-        : null;
-      return val != null ? val : '';
-    }
-  }
-
-  const parts: string[] = [];
-  let s = template;
-  for (let i = 0; i < INTERPOLATE_MAX_PLACEHOLDERS; i++) {
-    const start = s.indexOf('{{');
-    if (start === -1) {
-      parts.push(s);
-      break;
-    }
-    parts.push(s.slice(0, start));
-    const end = s.indexOf('}}', start);
-    if (end === -1) {
-      parts.push(s.slice(start));
-      break;
-    }
-    const ref = s.slice(start + 2, end).trim();
-    /** Resolve ref path or get value from model if ref path is not found. */
-    const resolved = resolveRefPath(ref, ctx);
-    const val = ref
-      ? resolved != null
-        ? getRefValue(ref, ctx)
-        : getValueByPath(ctx.currentInstance?.model?.() ?? {}, ref)
-      : null;
-    parts.push(val != null ? String(val) : '');
-    s = s.slice(end + 2);
-  }
-  return parts.join('');
 }

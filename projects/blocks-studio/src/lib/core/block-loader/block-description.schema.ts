@@ -27,40 +27,52 @@ const ServiceEntrySchema = z.union([
   }),
 ]);
 
+const paramsSchema = z.union([z.array(z.unknown()), z.record(z.string(), z.unknown())]).optional();
+
 /**
- * Output handler: empty (use directive-provided handler) or reference-based (call method on ref).
+ * After the parent call succeeds, run `then` in order. Each step may nest `then` (runs after that step,
+ * before the next sibling). Step is a callable ref string (`Block:path.method`) or an object with `ref` plus options.
  */
-const OutputReferenceSchema = z.object({
-  type: z.literal('reference'),
-  reference: z.string().min(1),
-  method: z.string().min(1),
-  params: z.union([z.array(z.unknown()), z.record(z.string(), z.unknown())]).optional(),
-  then: z
-    .array(
-      z.object({
-        reference: z.string().min(1),
-        method: z.string().min(1),
-        params: z.union([z.array(z.unknown()), z.record(z.string(), z.unknown())]).optional(),
-      }),
-    )
-    .optional(),
-  onSuccess: z
-    .object({
-      reference: z.string().min(1),
-      method: z.string().min(1),
-      params: z.union([z.array(z.unknown()), z.record(z.string(), z.unknown())]).optional(),
-    })
-    .optional(),
-  onError: z
-    .object({
-      reference: z.string().min(1),
-      method: z.string().min(1),
-      params: z.union([z.array(z.unknown()), z.record(z.string(), z.unknown())]).optional(),
-    })
-    .optional(),
+export type ThenChainStep =
+  | string
+  | {
+      ref: string;
+      when?: unknown;
+      params?: unknown[] | Record<string, unknown>;
+      then?: ThenChainStep[];
+    };
+
+const ThenChainStepSchema: z.ZodType<ThenChainStep> = z.lazy(() =>
+  z.union([
+    z.string().min(1),
+    z.object({
+      ref: z.string().min(1),
+      when: z.unknown().optional(),
+      params: paramsSchema,
+      then: z.array(ThenChainStepSchema).optional(),
+    }),
+  ]),
+);
+
+const OnErrorSchema = z.object({
+  ref: z.string().min(1),
+  when: z.unknown().optional(),
+  params: paramsSchema,
 });
 
-const OutputValueSchema = z.union([z.record(z.string(), z.unknown()), OutputReferenceSchema]);
+/**
+ * Object form when `params`, `when`, `then`, or `onError` are needed. `ref` is a full callable path
+ * (`Block:service.path.method` — last dot segment is the method name).
+ */
+const OutputCallObjectSchema = z.object({
+  ref: z.string().min(1),
+  when: z.unknown().optional(),
+  params: paramsSchema,
+  then: z.array(ThenChainStepSchema).optional(),
+  onError: OnErrorSchema.optional(),
+});
+
+const OutputValueSchema = z.union([z.string().min(1), OutputCallObjectSchema]);
 
 /**
  * Block description: JSON-serializable descriptor for dynamic block loading.
@@ -82,7 +94,11 @@ export const BlockDescriptionSchema = z.object({
 export type BlockDescription = z.infer<typeof BlockDescriptionSchema>;
 export type BlockInput = z.input<typeof BlockDescriptionSchema>;
 export type ServiceEntry = z.infer<typeof ServiceEntrySchema>;
-export type OutputReference = z.infer<typeof OutputReferenceSchema>;
+export type OutputCallObject = z.infer<typeof OutputCallObjectSchema>;
+export type BlockOutputValue = z.infer<typeof OutputValueSchema>;
+
+/** @deprecated Use OutputCallObject */
+export type OutputReference = OutputCallObject;
 
 /** Normalize services to array. */
 export function normalizeServices(services: BlockDescription['services']): ServiceEntry[] {
@@ -102,14 +118,19 @@ export function safeParseBlockDescription(
   return BlockDescriptionSchema.safeParse(data);
 }
 
-export function isOutputReference(value: unknown): value is OutputReference {
+export function isOutputCallObject(value: unknown): value is OutputCallObject {
   return (
     typeof value === 'object' &&
     value !== null &&
-    (value as OutputReference).type === 'reference' &&
-    typeof (value as OutputReference).reference === 'string' &&
-    typeof (value as OutputReference).method === 'string'
+    !Array.isArray(value) &&
+    typeof (value as OutputCallObject).ref === 'string' &&
+    (value as OutputCallObject).ref.length > 0
   );
+}
+
+/** @deprecated Use isOutputCallObject */
+export function isOutputReference(value: unknown): value is OutputReference {
+  return isOutputCallObject(value);
 }
 
 /**
@@ -195,7 +216,7 @@ export async function resolveBlockReference(
   if (base == null || typeof base !== 'object')
     throw new Error(`Block "${blockId}" has no definition.`);
 
-  if(id != null && id !== '') { 
+  if (id != null && id !== '') {
     base = { ...base, id };
   }
 
