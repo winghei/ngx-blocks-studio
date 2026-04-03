@@ -20,7 +20,8 @@ npx vitest run --config tests/block-directives/vitest.config.ts
 
 | Spec | Coverage |
 |------|----------|
-| `block-description.schema.spec.ts` | `safeParseBlockDescription`, `normalizeServices`, `normalizeDirectives`, `isBlockReference`, `isOutputReference`, `deepMergeBlockDefinition`, `resolveBlockReference` |
+| `block-description-validate.spec.ts` | `safeParseBlockDescription` (success paths, services/directives/inputs/outputs edge cases, nested `then` / `onError`) |
+| `block-description.schema.spec.ts` | `safeParse` re-export smoke, `normalizeServices`, `normalizeDirectives`, `isBlockReference`, `isOutputReference`, `deepMergeBlockDefinition`, `resolveBlockReference` |
 | `block-registry.spec.ts` | `BlockRegistryImpl` (register, get, has, unregister, duplicate id) |
 | `ref-expressions.spec.ts` | `parseRefPath`, `extractReadonlyRefs`, `isTwoWayRefString`, `classifyTwoWayString`, `parseTwoWayRef` |
 | `block-loader.service.spec.ts` | `BlockLoaderService.load` (minimal load, inputs, block reference, duplicate id, updateInputs) |

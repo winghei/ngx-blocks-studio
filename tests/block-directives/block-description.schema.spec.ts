@@ -12,75 +12,27 @@ import {
 import { BlockDefinitionsRegistry } from '../../projects/blocks-studio/src/lib/core/registry/block-definitions.registry';
 
 describe('block-description.schema', () => {
-  describe('safeParseBlockDescription', () => {
-    it('parses a minimal valid description (component only)', () => {
-      const result = safeParseBlockDescription({ component: 'MyComponent' });
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.component).toBe('MyComponent');
-        expect(result.data.id).toBeUndefined();
-        expect(result.data.services).toEqual([]);
-        expect(result.data.directives).toEqual([]);
-        expect(result.data.inputs).toBeUndefined();
-        expect(result.data.outputs).toBeUndefined();
-      }
-    });
-
-    it('parses full description with all optional fields', () => {
-      const desc = {
-        component: 'Layout',
-        id: 'MyBlock',
-        services: [{ id: 'FormState', scope: 'self' as const }],
-        directives: ['Tooltip', 'FocusDirective'],
-        inputs: { title: 'Hello', count: 42 },
-        outputs: { submit: { type: 'reference' as const, reference: 'X:Y', method: 'handle' } },
-      };
-      const result = safeParseBlockDescription(desc);
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.component).toBe('Layout');
-        expect(result.data.id).toBe('MyBlock');
-        expect(result.data.inputs).toEqual({ title: 'Hello', count: 42 });
-        expect(result.data.outputs).toBeDefined();
-        expect(result.data.directives).toEqual(['Tooltip', 'FocusDirective']);
-      }
-    });
-
-    it('parses directives as single string (normalizeDirectives converts to array)', () => {
-      const result = safeParseBlockDescription({ component: 'C', directives: 'OneDirective' });
-      expect(result.success).toBe(true);
-      if (result.success) expect(result.data.directives).toBe('OneDirective');
-    });
-
-    it('fails when component is missing', () => {
-      const result = safeParseBlockDescription({ id: 'X' });
-      expect(result.success).toBe(false);
-    });
-
-    it('fails when component is empty string', () => {
-      const result = safeParseBlockDescription({ component: '' });
-      expect(result.success).toBe(false);
-    });
-
-    it('fails for invalid data type', () => {
-      expect(safeParseBlockDescription(null).success).toBe(false);
-      expect(safeParseBlockDescription('string').success).toBe(false);
-      expect(safeParseBlockDescription(123).success).toBe(false);
+  describe('safeParseBlockDescription (re-export)', () => {
+    it('matches validate module behavior', () => {
+      const ok = safeParseBlockDescription({ component: 'X' });
+      const bad = safeParseBlockDescription({ component: '' });
+      expect(ok.success).toBe(true);
+      expect(bad.success).toBe(false);
     });
   });
 
   describe('normalizeServices', () => {
     it('returns empty array for null or undefined', () => {
-      expect(normalizeServices(undefined)).toEqual([]);
+      expect(normalizeServices(undefined as never)).toEqual([]);
       expect(normalizeServices(null as never)).toEqual([]);
     });
 
     it('returns array for single string', () => {
-      expect(normalizeServices('FormState')).toEqual(['FormState']);
+      expect(normalizeServices('FormState' as never)).toEqual(['FormState']);
     });
 
     it('returns array for single object entry', () => {
-      expect(normalizeServices({ id: 'FormState', scope: 'self' })).toEqual([
+      expect(normalizeServices({ id: 'FormState', scope: 'self' } as never)).toEqual([
         { id: 'FormState', scope: 'self' },
       ]);
     });
@@ -93,7 +45,7 @@ describe('block-description.schema', () => {
 
   describe('normalizeDirectives', () => {
     it('returns empty array for null or undefined', () => {
-      expect(normalizeDirectives(undefined)).toEqual([]);
+      expect(normalizeDirectives(undefined as never)).toEqual([]);
       expect(normalizeDirectives(null as never)).toEqual([]);
     });
 
@@ -137,9 +89,7 @@ describe('block-description.schema', () => {
 
   describe('isOutputReference', () => {
     it('returns true for valid output reference', () => {
-      expect(
-        isOutputReference({ type: 'reference', reference: 'X:Y', method: 'set' }),
-      ).toBe(true);
+      expect(isOutputReference({ ref: 'Block:SomeService.path.set' })).toBe(true);
     });
 
     it('returns false for plain object', () => {
@@ -164,8 +114,8 @@ describe('block-description.schema', () => {
       const base = { arr: [1, 2], num: 5 };
       const override = { arr: [3], num: 10 };
       const result = deepMergeBlockDefinition(base, override);
-      expect(result.arr).toEqual([3]);
-      expect(result.num).toBe(10);
+      expect(result['arr']).toEqual([3]);
+      expect(result['num']).toBe(10);
     });
 
     it('does not mutate base', () => {
@@ -200,8 +150,8 @@ describe('block-description.schema', () => {
         { blockId: 'TestBlock' } as BlockReference,
         defs,
       );
-      expect(result.component).toBe('OverrideComponent');
-      expect((result as { inputs?: { initial?: boolean } }).inputs?.initial).toBe(false);
+      expect(result['component']).toBe('OverrideComponent');
+      expect((result as { inputs?: { initial?: boolean } }).inputs?.['initial']).toBe(false);
     });
 
     it('resolves from global registry when not in blockDefinitions', async () => {
@@ -209,8 +159,8 @@ describe('block-description.schema', () => {
         { blockId: 'TestBlock' } as BlockReference,
         {},
       );
-      expect(result.component).toBe('TestComponent');
-      expect((result as { inputs?: { initial?: boolean } }).inputs?.initial).toBe(true);
+      expect(result['component']).toBe('TestComponent');
+      expect((result as { inputs?: { initial?: boolean } }).inputs?.['initial']).toBe(true);
     });
 
     it('merges blockDefinition override onto base', async () => {
@@ -221,8 +171,8 @@ describe('block-description.schema', () => {
         } as BlockReference,
         {},
       );
-      expect((result as { inputs?: Record<string, unknown> }).inputs?.initial).toBe(true);
-      expect((result as { inputs?: Record<string, unknown> }).inputs?.extra).toBe('value');
+      expect((result as { inputs?: Record<string, unknown> }).inputs?.['initial']).toBe(true);
+      expect((result as { inputs?: Record<string, unknown> }).inputs?.['extra']).toBe('value');
     });
 
     it('resolves lazy blockDefinitions entry (loader)', async () => {
@@ -238,8 +188,8 @@ describe('block-description.schema', () => {
         { blockId: 'LazyBlock' } as BlockReference,
         defs,
       );
-      expect(result.component).toBe('LazyComponent');
-      expect((result as { inputs?: { from?: string } }).inputs?.from).toBe('loader');
+      expect(result['component']).toBe('LazyComponent');
+      expect((result as { inputs?: { from?: string } }).inputs?.['from']).toBe('loader');
     });
 
     it('resolves from global registry when registered as loader', async () => {
@@ -256,7 +206,7 @@ describe('block-description.schema', () => {
           { blockId: 'LazyGlobalBlock' } as BlockReference,
           {},
         );
-        expect(result.component).toBe('LazyG');
+        expect(result['component']).toBe('LazyG');
       } finally {
         registry.unregister('LazyGlobalBlock');
       }

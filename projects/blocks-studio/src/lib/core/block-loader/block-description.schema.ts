@@ -1,9 +1,26 @@
-import { z } from 'zod';
+import type {
+  BlockDescription,
+  BlockInput,
+  OutputCallObject,
+  ServiceEntry,
+} from './block-description.types';
 import {
   BlockDefinitionsRegistry,
   type BlockDefinitionOrLoader,
   isBlockDefinitionLoader,
 } from '../registry/block-definitions.registry';
+export type {
+  BlockDescription,
+  BlockInput,
+  BlockOutputValue,
+  OutputCallObject,
+  SafeParseBlockDescriptionResult,
+  ServiceEntry,
+  ThenChainStep,
+} from './block-description.types';
+export type { OutputOnError } from './block-description.types';
+
+export { safeParseBlockDescription } from './block-description-validate';
 
 async function resolveBlockDefinitionValue(
   raw: BlockDefinitionOrLoader,
@@ -13,89 +30,6 @@ async function resolveBlockDefinitionValue(
   }
   return raw;
 }
-
-/**
- * Service entry: root-scoped (string id or { id, alias? } with no scope) or self-scoped ({ id, scope: "self", alias? }).
- * When scope is omitted or undefined, the service is resolved from the root injector.
- */
-const ServiceEntrySchema = z.union([
-  z.string().min(1),
-  z.object({
-    id: z.string().min(1),
-    scope: z.literal('self').optional(),
-    alias: z.string().min(1).optional(),
-  }),
-]);
-
-const paramsSchema = z.union([z.array(z.unknown()), z.record(z.string(), z.unknown())]).optional();
-
-/**
- * After the parent call succeeds, run `then` in order. Each step may nest `then` (runs after that step,
- * before the next sibling). Step is a callable ref string (`Block:path.method`) or an object with `ref` plus options.
- */
-export type ThenChainStep =
-  | string
-  | {
-      ref: string;
-      when?: unknown;
-      params?: unknown[] | Record<string, unknown>;
-      then?: ThenChainStep[];
-    };
-
-const ThenChainStepSchema: z.ZodType<ThenChainStep> = z.lazy(() =>
-  z.union([
-    z.string().min(1),
-    z.object({
-      ref: z.string().min(1),
-      when: z.unknown().optional(),
-      params: paramsSchema,
-      then: z.array(ThenChainStepSchema).optional(),
-    }),
-  ]),
-);
-
-const OnErrorSchema = z.object({
-  ref: z.string().min(1),
-  when: z.unknown().optional(),
-  params: paramsSchema,
-});
-
-/**
- * Object form when `params`, `when`, `then`, or `onError` are needed. `ref` is a full callable path
- * (`Block:service.path.method` — last dot segment is the method name).
- */
-const OutputCallObjectSchema = z.object({
-  ref: z.string().min(1),
-  when: z.unknown().optional(),
-  params: paramsSchema,
-  then: z.array(ThenChainStepSchema).optional(),
-  onError: OnErrorSchema.optional(),
-});
-
-const OutputValueSchema = z.union([z.string().min(1), OutputCallObjectSchema]);
-
-/**
- * Block description: JSON-serializable descriptor for dynamic block loading.
- * Refs in inputs: "model.info.title" (current block) or "BlockID:model.info.title" (block id + service/model + path).
- */
-export const BlockDescriptionSchema = z.object({
-  component: z.string().min(1),
-  id: z.string().min(1).optional(),
-  services: z
-    .union([ServiceEntrySchema, z.array(ServiceEntrySchema)])
-    .optional()
-    .default([]),
-  /** Registered directive ids to apply to the host of the dynamically created component. */
-  directives: z.union([z.string().min(1), z.array(z.string().min(1))]).optional().default([]),
-  inputs: z.record(z.string(), z.unknown()).optional(),
-  outputs: z.record(z.string(), OutputValueSchema).optional(),
-});
-
-export type BlockDescription = z.infer<typeof BlockDescriptionSchema>;
-export type BlockInput = z.input<typeof BlockDescriptionSchema>;
-export type ServiceEntry = z.infer<typeof ServiceEntrySchema>;
-export type OutputCallObject = z.infer<typeof OutputCallObjectSchema>;
-export type BlockOutputValue = z.infer<typeof OutputValueSchema>;
 
 /** @deprecated Use OutputCallObject */
 export type OutputReference = OutputCallObject;
@@ -110,12 +44,6 @@ export function normalizeServices(services: BlockDescription['services']): Servi
 export function normalizeDirectives(directives: BlockDescription['directives']): string[] {
   if (directives == null) return [];
   return Array.isArray(directives) ? directives : [directives];
-}
-
-export function safeParseBlockDescription(
-  data: unknown,
-): ReturnType<typeof BlockDescriptionSchema.safeParse> {
-  return BlockDescriptionSchema.safeParse(data);
 }
 
 export function isOutputCallObject(value: unknown): value is OutputCallObject {

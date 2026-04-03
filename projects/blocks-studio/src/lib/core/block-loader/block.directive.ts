@@ -162,7 +162,7 @@ export class BlockDirective {
         return;
       }
 
-      runAfterResolved(desc as Record<string, unknown>);
+      runAfterResolved(desc as unknown as Record<string, unknown>);
     });
 
     this.destroyRef.onDestroy(() => this.clear());

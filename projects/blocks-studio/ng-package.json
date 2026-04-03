@@ -2,5 +2,5 @@
   "$schema": "../../node_modules/ng-packagr/ng-package.schema.json",
   "dest": "../../dist/blocks-studio",
   "lib": { "entryFile": "src/public-api.ts" },
-  "allowedNonPeerDependencies": ["zod"]
+  "allowedNonPeerDependencies": ["tslib"]
 }
