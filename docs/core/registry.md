@@ -9,7 +9,7 @@ The registry module provides a unified system for registering and resolving Angu
 - **ComponentRegistry** – Register Angular component types (or loaders) by name; resolve by name with optional lazy loading.
 - **DirectiveRegistry** – Register Angular directive types (or loaders) by name; resolve by name with optional lazy loading. Used by the block loader for **host directives** (see [Block loader](block-loader.md#host-directives-and-inputsoutputs)).
 - **GuardRegistry** – Register route guards (or loaders) by name; resolve by name with optional lazy loading.
-- **ServiceRegistry** – Register Angular service types (or loaders) by name; resolve **instances** via the Angular injector, with optional lazy loading.
+- **ServiceRegistry** – Register Angular service types (or loaders) by name. **`get()`** / **`getSync()`** resolve **instances** via the injector (after **`setInjector`**). The block loader also uses **`getType()`** / **`getTypeSync()`** to obtain the **class token** for root injector and child-injector provisioning (it does not use `get()` for block `services`).
 - **RegistryMetadataStore** – Single source of truth for metadata for all registries; supports `getMetadata(key)` per registry and `getAllMetadata()` for components, directives, services, and guards together.
 
 All five are singletons. Component, directive, guard, and service registries delegate metadata to `RegistryMetadataStore`, so metadata is consistent and can be aggregated across registries.
@@ -167,6 +167,8 @@ Service instances are created with Angular’s `Injector`. You must call **`setI
 | `register(name, service, metadata?)` | Register a service type or a `() => Promise<Type<any>>` loader. Optional metadata is stored in the shared metadata store. |
 | `get(name)` | Resolve **instance** by name (async; runs loader if needed). Returns `Promise<any>`. |
 | `getSync(name)` | Resolve **instance** synchronously. Returns `undefined` if the entry is a lazy loader. |
+| `getType(name)` | Resolve the **service class** `Type` by name (async). Used by the block loader to provision root/self services. |
+| `getTypeSync(name)` | Resolve the **service class** synchronously if already loaded. |
 | `has(name)` | Whether a service is registered for that name. |
 | `getAllNames()` | All registered service names. |
 | `getMetadata(key)` | Get metadata for the service key from the shared store. |
@@ -206,7 +208,7 @@ const meta = registry.getMetadata('api');
 
 ## GuardRegistry
 
-Registers **route guards** (functional or class-based) or loader functions by name. Use it when you need to resolve a guard by string key (e.g. for `RouteLoader` from route config `guards: ['auth']`).
+Registers **route guards** (functional or class-based) or loader functions by name. Use it when you need to resolve a guard by string key (e.g. for `RouteLoader` from route config fields such as `canActivate: ['auth']`, `canDeactivate`, `canLoad`, `canMatch`, or `canActivateChild`).
 
 ### API
 

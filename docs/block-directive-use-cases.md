@@ -2,7 +2,7 @@
 
 Quick reference for how block descriptions use **bindings**, **services**, **directive inputs/outputs**, **block references**, and **output handlers**. Each use case includes a short description and where it appears in the demo app.
 
-**See also:** [Block loader](core/block-loader.md) (full behavior), [Registry](core/registry.md) (ComponentRegistry, DirectiveRegistry, ServiceRegistry).
+**See also:** [Documentation overview](overview.md) (learning path), [Concepts → Reference paths](concepts.md#reference-paths) (including **scoped** `ScopeKey/BlockId:...` refs), [Block loader](core/block-loader.md) (full behavior), [Registry](core/registry.md) (ComponentRegistry, DirectiveRegistry, ServiceRegistry).
 
 ---
 
@@ -67,12 +67,14 @@ Files: `route-data/login.block.ts`, `route-data/dashboard.block.ts`, `route-data
 
 ### 2.3 Model and `setModel`
 
-**Description:** The block’s **model** is not taken from `inputs.model` in the description. It comes from the directive’s `[model]` input or the `model` argument to `load()`. The loader sets `blockInstance['model']` and calls `setModel(model)` on every service in the instance that has that method (e.g. FormState, AuthState). If `[model]` is a **ref path string**, the loader binds to that ref’s signal so model stays reactive.
+**Description:** The block’s **model** is not taken from `inputs.model` in the description. It comes from the directive’s `[model]` input or the **`model` signal** passed to **`load()`**. The loader sets **`blockInstance.model`** (a signal). **Root-scoped** services resolved from the injector are stored as-is on **`blockInstance.services`** (no automatic `setModel`). For **self-scoped** services, if the instance has a **`model` writable signal**, the loader may set it and call **`setModel()`** when a model value is present. If `[model]` is a **ref path string** (or contains templates), the loader resolves it to a reactive signal.
 
 **Use case:** Passing route data or initial form data into state services; binding the block’s model to another block’s model via a ref.
 
-**Demo:** Route data passes `model: { firstName: 'Jane', ... }`; BlockHost passes it to the directive; FormState receives it via `setModel`.  
+**Demo:** Route data passes `model: { firstName: 'Jane', ... }`; BlockHost passes it to the directive.  
 Files: `route-data/person-form.block.ts` (route `data.model`), `blocks/block-host/block-host.component.ts`.
+
+**Reference:** [Block loader – Services and model](core/block-loader.md#services-and-model).
 
 ---
 
@@ -90,7 +92,7 @@ Files: `route-data/person-form.block.ts` (route `data.model`), `blocks/block-hos
 
 ### 3.2 Inputs/outputs on component and directives
 
-**Description:** For each key in `inputs` (or `outputs`), the loader finds **all targets** that have that key: the component instance and any host directive instances. It resolves the value once and **sets it on every target** (or subscribes the same handler on every target). If a key exists only on a directive, only that directive receives it; if on both component and directive, both do.
+**Description:** For each key in `inputs` (or `outputs`), metadata lists which **public input/output names** exist on the component and each host directive. The loader resolves each value once and applies the same **input** / **two-way** / **output** bindings to **every** target that declares that name. If a key exists only on a directive, only that directive receives it; if on both component and directive, both do.
 
 **Use case:** One description drives both the component and host directives (e.g. `disabled`, `valueChange`).
 
@@ -122,36 +124,37 @@ File: `route-data/person-form.block.ts` (comment), [Block loader – Reusing blo
 
 ---
 
-## 5. Output handlers
+## 5. Outputs (callable refs)
 
-### 5.1 Output as reference (call method on ref)
+Each `outputs` entry must match **`BlockDescriptionSchema`**: a **string** callable ref, or an **`OutputCallObject`** with at least **`ref`**. The **last dot-separated segment** of the callable path is the **method name** (see `splitCallableRef` in `output-reference.ts`). There is **no** `outputHandlers` map on the directive or loader—unknown or missing shapes yield a **no-op** handler.
 
-**Description:** In `outputs`, set the value to `{ type: 'reference', reference: 'RefPath', method: 'methodName', params?: [...] }`. When the output fires, the loader resolves `reference` (e.g. `PersonForm:FormState.age` or `FormState`), calls `method` on that target with `params` (or the emitted value if no params). Ref path can point to a service or a signal (e.g. `PersonForm:FormState.age` → signal’s `set`).
+**Reference:** [Block loader – Outputs (callable refs)](core/block-loader.md#outputs-callable-refs).
 
-**Use case:** On value change, update a signal or call a service method (e.g. `age.set(value)`, `FormState.alert(msg)`).
+### 5.1 String or `ref` object
 
-**Demo:** Person form `NumberInput` uses `valueChange: { type: 'reference', reference: 'FormState', method: 'alert', params: ['Age changed to {{value}}'] }` and `valueChange: { type: 'reference', reference: 'PersonForm:FormState.age', method: 'set' }`.  
-File: `route-data/person-form.block.ts`.
+**Description:** Use a string such as `"PersonForm:FormState.age.set"` or an object `{ "ref": "FormState.alert", "params": ["Age changed to {{value}}"] }`. Params support template interpolation with the event payload.
 
----
+**Use case:** On value change, call `set` on a signal, or `alert` on a service.
 
-### 5.2 Output reference: `then` / `onSuccess` / `onError`
-
-**Description:** When the method called by the output reference returns a **Promise**, you can add `then` (array of `{ reference, method, params? }`) or `onSuccess` / `onError` (single `{ reference, method, params? }`). These are invoked after the promise resolves or rejects.
-
-**Use case:** Chaining async actions (e.g. save then navigate, or show error toast).
-
-**Reference:** [Block loader – Output reference shape](core/block-loader.md#output-reference-shape).
+**Demo:** See `route-data/person-form.block.ts` for examples (migrate legacy `{ type, reference, method }` shapes to a single **`ref`** string when validating nested blocks).
 
 ---
 
-### 5.3 Output via directive handler (`outputHandlers`)
+### 5.2 `then` and `onError`
 
-**Description:** If the output value in the description is **not** a reference config (e.g. omitted or a plain value), the loader uses the **outputHandlers** map passed to the directive/loader (key = output name). If no handler is provided, it uses a no-op.
+**Description:** On an **`OutputCallObject`**, optional **`then`** runs after the main call (and after a returned **Promise** settles). Steps use the same **callable `ref`** strings or nested step objects. **`onError`** runs when the main promise rejects.
 
-**Use case:** Custom imperative handling (e.g. analytics, focus) without defining a ref in the block description.
+**Use case:** Chaining async actions (e.g. save then navigate, or error toast).
 
-**Reference:** [Block loader – Outputs as reference](core/block-loader.md#outputs-as-reference), `createOutputHandler` in `output-reference.ts`.
+**Reference:** [Block loader – Outputs](core/block-loader.md#outputs-callable-refs).
+
+---
+
+### 5.3 Invalid or missing output config
+
+**Description:** If the output value is **not** a non-empty string and **not** an object with a **`ref`** field, **`createOutputHandler`** returns a **no-op**. Omitted output keys are not wired.
+
+**Reference:** `createOutputHandler` in `output-reference.ts`, `resolveBlockInputsAndOutputs` in `block-bindings.ts`.
 
 ---
 
@@ -161,8 +164,9 @@ File: `route-data/person-form.block.ts`.
 |------|--------|--------|
 | `serviceOrModel.path` | Current block’s instance (service or model) and path | `FormState.firstName`, `model.age` |
 | `BlockID:serviceOrModel.path` | Named block’s instance and path (block must have `id` and be in the same registry) | `PersonForm:FormState.firstName`, `LoginPage:AuthState.username` |
+| `ScopeKey/BlockID:serviceOrModel.path` | Block in a **scoped** registry registered on `BlockRegistryService` | `listScope/ItemCard:FormState.title` |
 
-Single segment (e.g. `FormState`) resolves to the instance entry; with path (e.g. `FormState.firstName`) the last segment is the property (or signal) on the resolved target.
+Single segment (e.g. `FormState`) resolves to the instance entry; with path (e.g. `FormState.firstName`) the last segment is the property (or signal) on the resolved target. Scoped refs require `setScopedRegistry` on **`BlockRegistryService`**; see [Concepts](concepts.md#scoped-block-registries).
 
 ---
 
@@ -175,13 +179,14 @@ Single segment (e.g. `FormState`) resolves to the instance entry; with path (e.g
 | Two-way `[( refPath )]` | Sync component ↔ ref (e.g. form state) | person-form, login, dashboard |
 | Root-scoped services | One instance from root injector | person-form `FormState` |
 | Self-scoped services | New instance per block | login, dashboard, person-form child |
-| Model / setModel | Model from `[model]` or `load(..., model)`; `setModel` on services | Route data, BlockHost |
-| Host directives | `directives: ['Id']`, same inputs/outputs on component + directives | (Demo: none; see Block loader doc) |
+| Model / `blockInstance.model` | Model from `[model]` / `load(..., model signal)`; **`setModel`** mainly for self-scoped services with a `model` signal | Route data, BlockHost |
+| Host directives | `directives: ['Id']`, same bindings on component + host directives | (Demo: none; see Block loader doc) |
 | Block reference `blockId` | Reuse definition from registry | All routes, AppNav in rows |
 | Block reference + blockDefinition | Deep-merge overrides onto base | (See block-loader.md examples) |
-| Output reference | `type: 'reference'`, call method on ref (e.g. signal.set) | person-form valueChange |
-| Output then/onSuccess/onError | Chained calls after promise | block-loader.md |
-| outputHandlers | Custom handler per output name when not a reference | block-loader.md |
+| Output callable ref | String `Block:path.method` or `{ ref, params?, then?, onError? }` | person-form `valueChange` (see schema) |
+| Output `then` / `onError` | Chained steps after promise resolve/reject | block-loader.md |
+| Invalid output value | No-op handler | block-loader.md |
+| Scoped ref `ScopeKey/BlockId:...` | Cross-scope block refs via `BlockRegistryService` | [Concepts](concepts.md#scoped-block-registries), block-loader.md |
 
 ---
 

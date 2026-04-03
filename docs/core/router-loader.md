@@ -37,8 +37,8 @@ Same shape for the **top-level config file** and for each route’s **`children`
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
 | `routes` | `RouteConfig[]` | Yes | Array of route definitions. |
-| `defaultRedirect` | `string` | No | Redirect path for empty route (`path: ''`). Omit to not add a default redirect. |
-| `catchAllRedirect` | `string` | No | Redirect path for unknown routes (`path: '**'`). Omit to not add a catch-all. |
+| `defaultRedirect` | `string` | No | Redirect path for empty route (`path: ''`). Omit or use **`''`** to skip adding a default redirect. |
+| `catchAllRedirect` | `string` | No | Redirect path for unknown routes (`path: '**'`). Omit or use **`''`** to skip adding a catch-all. |
 
 ## RouteLoader API
 

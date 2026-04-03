@@ -21,7 +21,7 @@ projects/blocks-studio/src/lib/core/block-loader/
 ├── block-registry.ts           # BlockRegistry, BlockInstanceHandle, BlockRegistryImpl
 ├── ref-expressions.ts          # parseRefPath, parseTwoWayRef, classifyTwoWayString
 ├── ref-resolver.ts             # ResolverContext, getRefValue, setRefValue
-├── output-reference.ts         # createOutputHandler (reference vs directive handler)
+├── output-reference.ts         # createOutputHandler (callable ref strings + OutputCallObject)
 ├── block-loader.service.ts     # BlockLoaderService
 └── block.directive.ts          # BlockDirective
 
@@ -32,8 +32,8 @@ projects/blocks-studio/src/lib/core/registry/
 ## Overview
 
 - **BlockDirective** – Renders one block from a description or block reference; use `[block]` with `[description]="desc"`, and optionally `[model]`, `[blockRegistry]="registry"`, and `[blockDefinitions]="definitions"` so nested blocks share the registry and references resolve.
-- **BlockLoaderService** – Validates the description (or resolves a block reference via `blockDefinitions` or global [BlockDefinitionsRegistry](registry.md#block-definitions-registry) and deep-merges `blockDefinition`), resolves the component (via [ComponentRegistry](registry.md)) and optional host directives (via [DirectiveRegistry](registry.md)), builds a child injector for self-scoped services, creates the component with host directives, resolves host directive instances from the injector, builds **instance** (services/state by name), seeds **model** from the directive’s `[model]` input (or the `model` argument when calling `load()`), validates that each input/output key exists on the component or at least one host directive (warns and skips otherwise), then resolves inputs and wires outputs on **all** matching targets (component and directives). Registers/unregisters by **id**.
-- **BlockRegistry** – One registry per tree; maps block **id** to a handle with **instance** (and optional **destroy**). Duplicate id in the same tree throws.
+- **BlockLoaderService** – Validates the description (or resolves a block reference via `blockDefinitions` or global [BlockDefinitionsRegistry](registry.md#block-definitions-registry) and deep-merges `blockDefinition`), resolves the component (via [ComponentRegistry](registry.md)) and optional host directive **types** (via [DirectiveRegistry](registry.md)), builds a child injector for self-scoped services, creates the component with **`createComponent`** and **Angular `inputBinding` / `twoWayBinding` / `outputBinding`** so inputs, two-way refs, and outputs stay reactive, builds **instance** (services/state by name), seeds **`blockInstance.model`** from the directive’s `[model]` input (or the `model` signal passed to `load()`), validates that each input/output key exists on the component or at least one host directive (warns and skips otherwise), then applies the same resolved bindings to **all** matching targets (component and host directives). Registers the block by **id** when present.
+- **BlockRegistry** – One registry per tree; maps block **id** to a **`BlockInstanceHandle`** with **`instance`** (`CurrentInstance`: `model` signal + `services` map) and optional **`destroy`**. Duplicate id in the same tree throws.
 
 ## Description shape
 
@@ -65,19 +65,16 @@ Input resolution runs in a fixed order. Each input key is handled as follows.
 ### Read-only refs: `{{ refPath }}`
 
 - **Format:** A string that contains at least one `{{ refPath }}` placeholder. Ref path format: `model.info.title` (current block) or `BlockID:model.info.title` (e.g. `"{{FormState.firstName}}"`, `"{{PersonForm:FormState.firstName}}"`). Ref path is trimmed; multiple placeholders are allowed.
-- **Behavior:** The loader replaces every `{{ refPath }}` with the current value from that path (signals are read via their getter). It sets the initial interpolated string on the component, then runs an **effect** that re-interpolates when any of the refs change and updates the input.
+- **Behavior:** The loader builds a **computed** (via `resolveTemplateString`) so the input stays reactive: when any referenced signal or nested ref changes, the bound input updates.
 - **Context:** Current block: `serviceOrModel.path`. Another block: `BlockID:serviceOrModel.path` (e.g. `PersonForm:FormState.firstName`).
 
 ### Two-way refs: `[( refPath )]`
 
 - **Format:** The **entire** input value must be exactly a two-way ref string: `"[(refPath)]"` (e.g. `"[(PersonForm:FormState.firstName)]"`). No extra text.
 - **No mixing:** Mixing `[( )]` with literals or `{{ }}` in the same string is invalid. The loader throws a clear error if it encounters such a value (e.g. `"prefix [(ref)]"` or `"[(ref)] and {{other}}"`). Use exactly `"[(refPath)]"` for two-way or `"{{ refPath }}"` / templates for read-only.
-- **Requirement:** The component must expose that input as a **signal** (or callable that returns the current value). The loader will read it and call `setRefValue` on the ref when it changes.
-- **Behavior:**
-  1. **Initial:** The ref's current value is resolved and set on the component input.
-  2. **Ref → component:** An effect reads the ref; when it changes, the loader calls `setInput` with that value so the component stays in sync (e.g. when another part of the app updates FormState).
-  3. **Component → ref:** An effect reads the component's signal; when it changes (e.g. user types), the loader calls `setRefValue` so the ref (e.g. FormState signal) is updated. The ref target must be writable (e.g. Angular `WritableSignal` with `.set()`); the loader never overwrites the signal with a literal.
-- **Nested layouts:** When the root block has nested child descriptions (e.g. `inputs.rows` with arrays of `{ component, inputs }`), two-way ref strings inside **child** `inputs` are **not** resolved during that recursion. They are left as `"[(refPath)]"` so that when the child block is loaded later, it still sees the two-way ref and can wire both effects. Only the **current** block's direct two-way ref inputs are resolved and wired.
+- **Requirement:** The resolved ref for a two-way input should be a **`WritableSignal`** when that input participates in two-way binding (`twoWayBinding`); otherwise the loader may fall back to a read-only linked signal and warn.
+- **Behavior:** The loader uses Angular **`twoWayBinding`**: the ref side is wired as a `WritableSignal` where possible; ref and component stay in sync through the binding API (not manual `setRefValue` loops in application code).
+- **Nested layouts:** When the root block has nested child descriptions (e.g. `inputs.rows` with arrays of `{ component, inputs }`), two-way ref strings inside **child** `inputs` are **not** resolved during parent load. They remain `"[(refPath)]"` until **that** child block is loaded, which then applies two-way bindings for its own inputs.
 
 ### Nested structures (e.g. `rows` / `columns`)
 
@@ -88,13 +85,19 @@ Input resolution runs in a fixed order. Each input key is handled as follows.
 
 | Input value shape | What happens |
 |-------------------|---------------|
-| Key is `model` | Ignored: the loader does not read `inputs.model` from the description. Model comes only from directive `[model]` / `load(..., model, ...)` and is passed to every instance service that has a `setModel` method. Not set on component. |
-| String with `{{ ... }}` | Interpolate once, set initial; effect re-interpolates and updates. |
-| String exactly `[( refPath )]` | Resolve initial from ref; two effects: ref→setInput, component signal→setRefValue. |
+| Key is `model` | **Two channels:** **`blockInstance.model`** (refs like `model.*`, template context) is set **only** from **`[model]`** on **`BlockDirective`** / the **`model`** signal passed to **`load()`**—not from `description.inputs`. **Separately**, if the dynamic component or a **host directive** declares a **`model` `@Input`**, then **`inputs.model`** in the description **does** bind that input using the same rules as any other key (literals, `{{ }}`, `[( )]`). That component/host binding does **not** replace or set **`blockInstance.model`**; see [Services and model](#services-and-model). |
+| String with `{{ ... }}` | Built as a reactive **computed** over `resolveTemplateString` (updates when refs change). |
+| String exactly `[( refPath )]` | **Two-way binding** via `twoWayBinding` to the resolved writable ref when possible. |
 | Other string | Left as-is, set on component. |
 | Array / object | Recursively resolved; two-way refs preserved inside nested block `inputs`. |
 
 Refs are resolved against the **current block** when no prefix is used (`model.path`). For another block use **BlockID:model.path** (e.g. `PersonForm:FormState.firstName`).
+
+### Services and model {#services-and-model}
+
+- **`blockInstance.model`** is set from the **`model`** signal passed to **`load()`** (or the **`BlockDirective`** `[model]` input, which is a signal).
+- **Root-scoped** services: the loader resolves the **class** via **`ServiceRegistry.getType`**, then obtains an instance from the **view container’s injector** (`injector.get(token, null)`). If Angular provides the service, it is stored on **`blockInstance.services`** under the alias. **No automatic `setModel` call** is made for root services.
+- **Self-scoped** services: the loader creates a **child injector** with `useClass` providers for each self-scoped type, then gets instances with `{ self: true }`. If the service has a **`model` writable signal** and a model value is present, the loader sets that signal and may call **`setModel()`** on the service.
 
 ---
 
@@ -117,60 +120,60 @@ If the **same** key exists on the **component and one or more host directives**,
 
 - Resolves the value **once** (same rules as [Inputs](#inputs): literals, `{{ }}`, `[( )]`, etc.).
 - **Sets** it on **every** target that has that input (component and each directive with that key).
-- For **outputs**, builds the handler **once** and **subscribes** on **every** target that has that output.
+- For **outputs**, builds the handler **once** and applies **`outputBinding`** on **every** target that has that output name.
 
 So there is no “component wins” or “directive wins”: every target that declares the key receives the same value or the same handler.
 
 ### How targets are found
 
 - **Input:** A target “has” an input if the component instance or directive instance has that property (e.g. `key in instance`).
-- **Output:** A target “has” an output if the instance has a property at that key that has a `.subscribe` method (e.g. an `EventEmitter` or `OutputEmitterRef`).
+- **Output:** A target “has” an output if component/directive metadata lists that **public output name** (see `getBlockInputsAndOutputs` / `ɵcmp` / `ɵdir` metadata).
 
 Host directive instances are obtained from the component’s injector after `createComponent(..., { directives: directiveTypes })`. If a directive type cannot be resolved from the injector, that directive is not considered when computing targets.
 
 ---
 
-## Outputs as reference
+## Outputs (callable refs) {#outputs-callable-refs}
+
+Validated by **`BlockDescriptionSchema`**: each output value is either a **string** or an **`OutputCallObject`**. There is **no** separate `outputHandlers` map on **`BlockDirective`** or **`BlockLoadOptions`**—if the value is neither a valid callable string nor an object with a **`ref`** field, **`createOutputHandler`** returns a **no-op**.
+
+**Source:** `block-bindings.ts` (`resolveBlockInputsAndOutputs` → `createOutputHandler`), `output-reference.ts`, `block-loader.service.ts` (bindings include **`outputBinding`** per output key).
 
 ### How output handling works
 
-1. **Block description `outputs`** – Each output key (e.g. `valueChange`) is either an **output reference** (`type: 'reference'`, `reference`, `method`, optional `params` / `then` / `onSuccess` / `onError`) or a plain value; in the latter case the directive’s **outputHandlers** map is used (key = output name), or a no-op if absent.
+1. For each key in **`outputs`**, the loader builds a handler with **`createOutputHandler(value, key, ctx)`**.
+2. **String** values are treated as a **callable ref template** (after template interpolation): the **last dot-separated segment** after `:` (or the last segment for current-block refs) is the **method name**; the part before that is the **ref path** resolved via **`BlockRegistry`** / **`resolveRefPath`** (see **`splitCallableRef`** in `output-reference.ts`).
+3. **Object** values must match **`OutputCallObject`**: at minimum **`ref: string`** (same callable format), plus optional **`when`**, **`params`**, **`then`**, **`onError`**. Async **`then`** steps use the same callable ref shape (`ref` + method as last segment).
 
-2. **Wiring** – The loader’s `wireOutputs` builds a handler per output via `createOutputHandler(outputValue, outputKey, registry, outputHandlers)` and subscribes to the component’s emitter (e.g. `inst['valueChange']`). When the component emits, the handler is called with the event value.
+### Callable ref examples
 
-3. **Reference handler** – For an output reference, the handler:
-   - Resolves **reference** (e.g. `PersonForm:FormState.age`) through the **BlockRegistry** to the target object (e.g. the `age` signal).
-   - Gets the **method** on that target (e.g. `set`).
-   - Calls **method** with **params** if provided, otherwise with the emitted value as the first argument (e.g. `age.set(emittedValue)`).
-   - If the method returns a Promise, **then** / **onSuccess** / **onError** are invoked by resolving their `reference` + `method` (and optional `params`) the same way and calling them.
+Call **`set`** on the **`age`** signal registered as `PersonForm:FormState.age`:
 
-**Source:** `output-reference.ts` (`resolveOutputReference`, `createOutputHandler`), `block-loader.service.ts` (`wireOutputs`).
+```json
+"outputs": {
+  "valueChange": "PersonForm:FormState.age.set"
+}
+```
 
-### Output reference shape
-
-When an output value is `{ type: "reference", reference, method, params?, then?, onSuccess?, onError? }`:
-
-- **reference** – Ref path (e.g. `UserForm:FormState` or `UserForm:FormState.age`). For a deep path, the **leaf** is the call target (e.g. the `age` signal).
-- **method** – Method name to call on that target (e.g. `setAge` on FormState, or `set` on a signal).
-- **params** – Optional array or record; if omitted, the **emitted event value** is passed as the first argument (e.g. `signal.set(emittedValue)`).
-- **then** – Optional array of `{ reference, method, params? }` to call after the method resolves (if it returns a Promise).
-- **onSuccess** / **onError** – Optional `{ reference, method, params? }` to call on success or error.
-
-**Example: call a signal's `set` with the emitted value**
+Or with an object (params, chaining):
 
 ```json
 "outputs": {
   "valueChange": {
-    "type": "reference",
-    "reference": "PersonForm:FormState.age",
-    "method": "set"
+    "ref": "PersonForm:FormState.age.set",
+    "params": []
   }
 }
 ```
 
-Here the target is the `age` signal; the loader calls `age.set(emittedValue)`. No `params` means the event payload is used.
+If **`params`** is omitted, the **emitted event value** is passed as the only argument (e.g. `signal.set(emittedValue)`).
 
-If the output value is not a reference config, the directive's **outputHandlers** map is used (key = output name).
+### `then` and `onError`
+
+- **`then`**: array of steps (string callable refs or `{ ref, when?, params?, then? }`) run after the main handler succeeds; if the main call returns a **Promise**, steps run after it settles.
+- **`onError`**: `{ ref, when?, params }` — invoked when the main promise rejects; **`ref`** is a callable path resolved the same way.
+
+There is **no** separate **`onSuccess`** field in the schema; use **`then`** for post-success chains.
 
 ## Reusing blocks by id (and overriding)
 
@@ -228,10 +231,15 @@ data: {
 **5. Programmatic load with override:**
 
 ```typescript
+import { signal } from '@angular/core';
+
+const model = signal<unknown | undefined>(undefined);
+
 await this.loader.load(
-  { blockId: 'UserCard', blockDefinition: { inputs: { model: { name: 'Jane' } } } },
+  { blockId: 'UserCard', blockDefinition: { inputs: { /* … */ } } },
   viewContainerRef,
-  { registry, blockDefinitions: { UserCard: userCardBlock } }
+  model,
+  { registry, blockDefinitions: { UserCard: userCardBlock } },
 );
 ```
 
@@ -242,37 +250,39 @@ For more examples (full description, route + BlockHost, deep merge behavior), se
 | Input | Type | Description |
 |-------|------|-------------|
 | `description` | `BlockInput \| BlockReference \| null` | Full block description, or block reference `{ blockId, id?, blockDefinition? }`. When using a reference, definition is resolved from `blockDefinitions` or the global BlockDefinitionsRegistry. |
-| `outputHandlers` | `Record<string, (value: unknown) => void>` | Handlers for component outputs; keys match description `outputs`. |
 | `blockRegistry` | `BlockRegistry \| null` | Registry for block instances by id; pass from root so nested blocks share it. |
-| `blockDefinitions` | `Record<string, unknown> \| null` | Map blockId → full description; used when `description` is a block reference. Missing keys fall back to global BlockDefinitionsRegistry. |
-| `model` | `Record<string, unknown> \| string \| undefined` | Optional model for the block (e.g. route data). Passed to the loader; services with `setModel` receive it. Can be a ref path string to bind to another block's model. |
+| `blockDefinitions` | `Record<string, BlockDefinitionOrLoader> \| null` | Map blockId → full description or lazy loader; used when `description` is a block reference. Missing keys fall back to global BlockDefinitionsRegistry. |
+| `model` | `Record<string, unknown> \| string \| undefined` | Optional model for the block (e.g. route data). Passed to the loader as a signal; see [Services and model](#services-and-model). Can be a ref path string or contain `{{ }}` templates for nested model interpolation. |
+| `reloadKey` | `unknown` | When this value changes, the directive forces a reload even if the component and services are unchanged (e.g. tabs). |
 
-Usage: host element with `[block]` and `[description]="desc"`. Optionally `[model]="model()"`, `[blockRegistry]="registry"`, `[blockDefinitions]="definitions"`, and `[outputHandlers]="handlers"`.
+Usage: host element with `[block]` and `[description]="desc"`. Optionally `[model]`, `[blockRegistry]`, `[blockDefinitions]`, and `[reloadKey]`.
 
 ## BlockLoaderService API
 
 | Method | Description |
 |--------|-------------|
-| `load(description, viewContainerRef, model, options?)` | Load a component from the description. **model** is a `Signal<unknown \| undefined>` (e.g. from the directive's `[model]` input); it seeds `blockInstance['model']` and each service's `setModel`. Builds instance from services, resolves inputs, wires outputs, registers by id. Returns `Promise<BlockLoadResult>`. |
+| `load(description, viewContainerRef, model, options?)` | Load a component from the description. **model** is a `Signal<unknown \| undefined>` (e.g. the **`BlockDirective`** `[model]` input signal). Resolves services, builds **`inputBinding` / `twoWayBinding` / `outputBinding`**, registers by **id** when present. Returns **`Promise<ComponentRef<unknown>>`**. |
 
-**BlockLoadOptions:** `outputHandlers?`, `registry?`, `blockDefinitions?` (blockId → full description; used when description is a block reference; missing keys use global BlockDefinitionsRegistry).
+**BlockLoadOptions:** `registry?`, `blockDefinitions?` (blockId → full description or loader; used when description is a block reference; missing keys use global BlockDefinitionsRegistry).
 
-**BlockLoadResult:** `componentRef`, `destroy()` (unregister, unsubscribe outputs, remove view, destroy component), `updateInputs(description)` (re-parse and re-apply model, inputs, and effects from a new description).
+**Note:** Unregistering and destroying the view is the responsibility of the caller (e.g. **`BlockDirective`** clears the view container and unregisters the block id on destroy). There is no **`BlockLoadResult`** wrapper in the current API.
 
 ## Block registry
 
 - **One registry per tree** – Create a `BlockRegistryImpl` (or implement `BlockRegistry`) at the root and pass it to the root `[block]` via `[blockRegistry]`.
 - **Id uniqueness** – Each **id** may occur at most once in the same registry.
-- **Handle** – `BlockInstanceHandle` has `instance: Record<string, unknown>` (services/state by name) and optional `destroy()`.
+- **Handle** – `BlockInstanceHandle` has **`instance: CurrentInstance`** (`model` signal + **`services`** map) and optional **`destroy()`**.
 
 ## Layout (rows / columns)
 
 Layout components can receive `inputs.rows` (and each row `inputs.columns`) as arrays of **child descriptions**. Each child is rendered with the same directive and registry, e.g.:
 
 ```html
-<ng-container *ngFor="let row of rows()">
-  <ng-container *ngFor="let col of row.columns" [block] [description]="col" [blockRegistry]="registry()"></ng-container>
-</ng-container>
+@for (row of rows(); track row) {
+  @for (col of row.columns; track col) {
+    <ng-container [block] [description]="col" [blockRegistry]="registry()"></ng-container>
+  }
+}
 ```
 
 Child descriptions have the same shape: `component`, `id?`, `services?`, `inputs?`, `outputs?`.

@@ -2,33 +2,41 @@
 
 Central documentation for **ngx-blocks-studio**. All module and API docs live here so the repo has a single place for documentation.
 
+## Start here
+
+| Document | Description |
+|----------|-------------|
+| [**Overview**](overview.md) | What the library is for, feature pillars, **learning path** (simple → advanced), demo and tests |
+| [**Concepts**](concepts.md) | Glossary: blocks vs routes, `blockId` vs `id`, registries, **ref path** formats (including scoped refs) |
+
+## Reference
+
+| Document | Description |
+|----------|-------------|
+| [Block-directive use cases](block-directive-use-cases.md) | Bindings (literal, `{{ }}`, `[( )]`), services (root/self), directive I/O, block references, output handlers; demo file references |
+| [Core → Registry](core/registry.md) | Component, directive, guard, and service registries, metadata, `BlockDefinitionsRegistry`, lazy loading |
+| [Core → Block loader](core/block-loader.md) | `BlockDirective`, description shape, instance refs, host directives, outputs as reference, `BlockLoaderService` |
+| [Core → Route loader](core/router-loader.md) | `RouteLoader`, `RouteConfig`, `RouteConfigs`, loading routes from JSON or in-memory config |
+
 ## Structure
 
 ```
 docs/
 ├── README.md                    # This index
-├── block-directive-use-cases.md # Use cases: bindings, services, directive I/O, block refs, outputs
-└── core/                        # Core library documentation
-    ├── registry.md              # ComponentRegistry, DirectiveRegistry, GuardRegistry, ServiceRegistry, metadata
-    ├── block-loader.md         # BlockDirective, description, instance refs, host directives, outputs as reference
-    └── router-loader.md        # RouteLoader, RouteConfig, loading routes from JSON
+├── overview.md                  # Introduction + learning path (start here)
+├── concepts.md                  # Glossary and ref path semantics
+├── block-directive-use-cases.md # Use cases with demo references
+└── core/
+    ├── registry.md
+    ├── block-loader.md
+    └── router-loader.md
 ```
-
-## Contents
-
-| Document | Description |
-|----------|-------------|
-| [Block-directive use cases](block-directive-use-cases.md) | Bindings (literal, `{{ }}`, `[( )]`), services (root/self), directive inputs/outputs, block references, output handlers; with demo references |
-| [Core → Registry](core/registry.md) | Component, directive, guard, and service registries, unified metadata store, lazy loading |
-| [Core → Block loader](core/block-loader.md) | BlockDirective, description (id, services, directives, inputs, outputs), instance refs, host directives and inputs/outputs validation, outputs as reference, registry |
-| [Core → Route loader](core/router-loader.md) | RouteLoader service, RouteConfig / RouteConfigFile, loading routes from JSON |
 
 ## Adding documentation
 
-- **New core module**: Add a file under `docs/core/` (e.g. `docs/core/services.md`) and link it in this table.
-- **New area**: Add a folder under `docs/` (e.g. `docs/guides/`) and a README or index there; link from this README.
-- **Cross-links**: Use relative paths, e.g. `[Registry](core/registry.md)` from this file, or `[Documentation index](../README.md)` from a subfolder.
+- **New core module**: Add a file under `docs/core/` and link it from this README and from [Overview](overview.md) if it is user-facing.
+- **Cross-links**: Use relative paths, e.g. `[Registry](core/registry.md)`.
 
 ## Source code
 
-Library source lives under `projects/blocks-studio/src/lib/`. Docs describe the public API and behavior; for file locations, see each doc’s “Source” or “Folder structure” section.
+Library source: `projects/blocks-studio/src/lib/`. Deep dives reference files under `projects/blocks-studio/src/lib/core/`.
