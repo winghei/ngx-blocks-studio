@@ -1,0 +1,123 @@
+/* Design tokens for innerHTML / legacy markup (Master CSS handles component classes). */
+:root {
+  --text-primary: #111;
+  --text-secondary: #555;
+  --border-color: #e0e0e0;
+  --surface-color: #fff;
+  --background-color: #fafafa;
+  --primary-color: #1565c0;
+  --shadow-light: rgba(0, 0, 0, 0.06);
+  --hover-bg: rgba(0, 0, 0, 0.06);
+  --active-bg: rgba(21, 101, 192, 0.08);
+}
+
+/* Doc / HtmlBlock typography (content from route HTML strings). */
+.html-block-content {
+  :first-child {
+    margin-top: 0;
+  }
+
+  :last-child {
+    margin-bottom: 0;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-weight: 600;
+    margin: 0 0 0.5em;
+    color: var(--text-primary, #111);
+  }
+
+  h2 {
+    font-size: 1.25rem;
+  }
+
+  p {
+    margin: 0 0 0.75em;
+  }
+
+  .lead {
+    font-size: 1.125rem;
+    color: var(--text-secondary, #555);
+  }
+
+  h4 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin: 1rem 0 0.5rem;
+    color: var(--text-primary, #111);
+  }
+}
+
+/* Callouts and tables inside HtmlBlock (route-data docs). */
+.doc-surface {
+  padding: 0.75rem 1rem;
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  margin: 0.75rem 0;
+  color: var(--text-primary);
+}
+
+.doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+  margin: 0.75rem 0;
+  color: var(--text-primary);
+
+  th,
+  td {
+    border: 1px solid var(--border-color);
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  thead th {
+    background: var(--hover-bg);
+    font-weight: 600;
+  }
+}
+
+/* Light JSON / snippet blocks (override global terminal `pre` styling). */
+pre.doc-snippet {
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 0.75rem 1rem;
+  background: var(--surface-color);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-family: 'Fira Mono', 'Consolas', 'Monaco', monospace;
+  box-shadow: none;
+  margin: 0.75rem 0;
+}
+
+pre.doc-snippet.doc-snippet--flush {
+  margin-bottom: 0;
+}
+
+pre {
+  white-space: pre;
+  word-break: normal;
+  overflow-x: auto;
+  padding: 1rem 1.5rem;
+  background: linear-gradient(90deg, #232526 0%, #414345 100%);
+  color: #fafafa;
+  border-radius: 0.5rem;
+  border: 1px solid #2c2c2c;
+  font-size: 0.95rem;
+  font-family: 'Fira Mono', 'Consolas', 'Monaco', monospace;
+  box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.1);
+  margin: 1.5rem 0;
+}
+
+.string-input-field:focus,
+.number-input-field:focus {
+  outline: none;
+  border-color: var(--primary-color, #1976d2);
+  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2);
+}

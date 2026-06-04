@@ -1,0 +1,12 @@
+<div class="string-input-block">
+    @if (label()) {
+      <label class="string-input-label">{{ label() }}</label>
+    }
+    <input
+      type="text"
+      class="string-input-field"
+      [(ngModel)]="value"
+      [placeholder]="placeholder()"
+    />
+  </div>
+  

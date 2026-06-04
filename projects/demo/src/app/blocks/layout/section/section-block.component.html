@@ -1,0 +1,15 @@
+<section class="section-block">
+  @if (title()) {
+    <h2 class="section-title" [innerHTML]="title()"></h2>
+  }
+  <div class="section-content">
+    @for (child of children(); track $index) {
+      <div
+        block
+        [description]="child"
+        [blockRegistry]="getRegistry()"
+        [model]="model()">
+      </div>
+    }
+  </div>
+</section>
