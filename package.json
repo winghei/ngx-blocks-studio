@@ -1,6 +1,6 @@
 {
   "name": "ngx-blocks-studio",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "scripts": {
     "ng": "ng",
     "master-css:compile": "node scripts/compile-master-css.mjs",

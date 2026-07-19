@@ -3,6 +3,42 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.1.1] - 2026-07-19
+
+
+## 🧪 Tests
+
+- Angular CLI update for packages - @angular/cli@latest ([8e3d374f](../../commit/8e3d374fd5051c52a2686fff571d71ab85cd07a9))
+
+## 🔧 Chores
+
+- Bump version to 0.1.1 and update repository metadata in package.json files ([c84d6798](../../commit/c84d6798ed7d6ab45377d4c7337910cc00b46994))
+
+  - Updated version from 0.1.0 to 0.1.1 in both root and blocks-studio package.json files.
+- Update dependencies in package-lock.json ([db81e507](../../commit/db81e50745c60e502109544405cd02c740c02ef2))
+
+  - Bump versions of fast-uri to 3.1.4, nanoid to 3.3.16, postcss to 8.5.20, and ws to 8.21.1 for improved functionality and security.
+- Update vitest and related dependencies to version 4.1.10 in package.json and package-lock.json ([773f048e](../../commit/773f048e9dda29bed47b0f1a383e03a3ce1b44d9))
+- Update VSCode configuration for Master CSS integration ([e2568914](../../commit/e2568914f05734ec18859b260213918b23c64498))
+
+  - Add 'masterco.master-css-vscode' to recommended extensions.
+- Update project configuration and dependencies for Master CSS integration ([ca8e64e0](../../commit/ca8e64e08d921d14012282a31aa03f2937d7437a))
+
+  - Add master.css and master-css.manifest.json for CSS runtime support.
+
+## Other
+
+- @angular/core migration - strict-safe-navigation-narrow ([bc486ab1](../../commit/bc486ab155f792e96aaf5428e0039486cc78b7fb))
+
+  Disables the 'nullishCoalescingNotNullable & optionalChainNotNullable extended diagnostics.
+- @angular/core migration - http-xhr-backend ([df1fbe56](../../commit/df1fbe56af7bfd5932c309d0b5449cda2b830e38))
+
+  Adds 'withXhr' to 'provideHttpClient' function calls when the 'HttpXhrBackend' is used. For more information see: https://angular.dev/api/common/http/withXhr
+- @angular/core migration - change-detection-eager ([03aa0394](../../commit/03aa0394b442adeb55749cbbf5e95728c45991ff))
+
+  Adds `ChangeDetectionStrategy.Eager` to all components.
+
+
 ## [0.1.0] - 2026-07-06
 
 
