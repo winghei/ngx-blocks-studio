@@ -28,7 +28,14 @@
       }
     ]
   },
-  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/winghei/ngx-blocks-studio.git"
+  },
+  "bugs": {
+    "url": "https://github.com/winghei/ngx-blocks-studio/issues"
+  },
+  "homepage": "https://github.com/winghei/ngx-blocks-studio#readme",
   "packageManager": "npm@10.8.2",
   "dependencies": {
     "@angular/common": "^22.0.7",
