@@ -1,0 +1,107 @@
+@import '@master/css';
+
+/**
+ * Master CSS project entry — theme tokens + @compose components.
+ * Compiled to master-css.manifest.json for CSSRuntime.
+ * @see https://rc.css.master.co/guide/global-styles
+ */
+
+@theme {
+  --color-primary: #1565c0;
+  --color-surface: #ffffff;
+  --color-canvas: #fafafa;
+  --color-border: #e0e0e0;
+  --color-muted: #555555;
+  --color-darker: #111111;
+  --color-hover: oklch(0% 0 none / .06);
+  --color-active: color-mix(in oklab, #1565c0 8%, transparent);
+}
+
+@utilities {
+  no-underline {
+    text-decoration: none;
+  }
+}
+
+@components {
+  block-host {
+    @compose max-w:8xl mx:auto py:8x px:6x bg:surface r:xl b:1px|solid|border;
+  }
+
+  block-host-empty {
+    @compose py:8x fg:muted text-center;
+  }
+
+  html-block-content {
+    @compose fg:darker leading:md font:md;
+  }
+
+  section-block {
+    @compose p:4x b:1px|solid|border r:lg bg:canvas;
+  }
+
+  section-title {
+    @compose m:0 mb:1x font:lg font:semibold fg:darker;
+  }
+
+  section-content {
+    @compose flex flex-col gap:3x;
+  }
+
+  row-layout-row {
+    @compose flex flex-wrap gap:5x mb:5x mb:0:last;
+  }
+
+  row-layout-col {
+    flex: 1 1 0%;
+    @compose min-w:0;
+  }
+
+  string-input-block {
+    @compose flex flex-col gap:1x;
+  }
+
+  string-input-label {
+    @compose font:sm font:medium fg:muted;
+  }
+
+  string-input-field {
+    @compose p:2x font:md b:1px|solid|border r:md bg:surface;
+  }
+
+  number-input-block {
+    @compose flex flex-col gap:1x;
+  }
+
+  number-input-label {
+    @compose font:sm font:medium fg:muted;
+  }
+
+  number-input-field {
+    @compose p:2x font:md b:1px|solid|border r:md bg:surface;
+  }
+
+  link-block {
+    cursor: pointer;
+    @compose underline;
+    &:hover {
+      opacity: 0.8;
+    }
+  }
+
+  app-nav {
+    @compose flex gap:1x px:6x min-h:12x items-center bg:surface bb:1px|solid|border;
+  }
+
+  app-nav-link {
+    @compose p:4x fg:muted text-decoration:none font:md font:medium r:md;
+    &:hover {
+      @compose fg:darker bg:hover;
+    }
+  }
+
+  /** Applied by RouterLinkActive when the link’s route is active. */
+  demo-link-active {
+    @compose fg:primary bg:active font:semibold;
+  }
+}

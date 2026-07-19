@@ -78,6 +78,7 @@
               }
             ],
             "styles": [
+              "projects/demo/src/master.css",
               "projects/demo/src/styles.scss"
             ]
           },
