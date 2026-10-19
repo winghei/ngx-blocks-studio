@@ -1,4 +1,4 @@
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withXhr } from '@angular/common/http';
 import {
   ApplicationConfig,
   Injector,
@@ -26,7 +26,7 @@ import { routes } from './route-data';
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
-    provideHttpClient(),
+    provideHttpClient(withXhr()),
     provideRouter([]),
     provideAppInitializer(() => {
       const routeLoader = inject(RouteLoader);
