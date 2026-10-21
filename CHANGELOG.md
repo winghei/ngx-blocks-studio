@@ -3,6 +3,20 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.2.1] - 2026-10-21
+
+
+## 🐛 Bug Fixes
+
+- Add nested template resolution utilities and enhance block descriptor detection ([2ce91799](../../commit/2ce917994dbf95f557294fc18e728edf6e5dba81))
+
+  - Introduced `looksLikeBlockDescriptor` and `shouldDeferInputTemplateResolution` functions to improve detection of block descriptors.
+
+## 🔧 Chores
+
+- bump version to 0.2.1 in package.json ([c4119f3a](../../commit/c4119f3acb752b10620f1af2adfcd037aae19fa0))
+
+
 ## [0.2.0] - 2026-10-21
 
 
