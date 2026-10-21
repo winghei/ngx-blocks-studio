@@ -59,14 +59,35 @@ Input resolution runs in a fixed order. Each input key is handled as follows.
 
 ### Literal values
 
-- Numbers, booleans, plain objects, arrays (without refs) are set on the component as-is.
+- Numbers, booleans, plain objects, and arrays with **no** resolvable strings anywhere in the tree are set on the component as-is (stable reference, no `computed`).
 - Plain strings with no `{{ }}` or `[( )]` are set as-is.
+- **Nested templates in objects and arrays:** When any string leaf in a plain object or array contains `{{ }}`, a flow template, or a standalone `[(refPath)]`, the whole input value is bound via a **`computed`** that deep-resolves those strings (same rules as top-level strings). Nested `[(refPath)]` is **read-resolve only** (current ref value), not Angular two-way on a nested key. Implementation: `nested-template-resolve.ts`.
 
 ### Read-only refs: `{{ refPath }}`
 
 - **Format:** A string that contains at least one `{{ refPath }}` placeholder. Ref path format: `model.info.title` (current block) or `BlockID:model.info.title` (e.g. `"{{FormState.firstName}}"`, `"{{PersonForm:FormState.firstName}}"`). Ref path is trimmed; multiple placeholders are allowed.
 - **Behavior:** The loader builds a **computed** (via `resolveTemplateString`) so the input stays reactive: when any referenced signal or nested ref changes, the bound input updates.
 - **Context:** Current block: `serviceOrModel.path`. Another block: `BlockID:serviceOrModel.path` (e.g. `PersonForm:FormState.firstName`).
+
+#### Expression vs ref resolver in `{{ }}` placeholders
+
+Not every `{{ … }}` segment uses the same resolver. That matters when services expose **signals** along the path (e.g. `AmsService.session.user.firstName` where `session` is a `Signal`).
+
+| What you write in `{{ }}` | Resolver used | Signal-aware path walk | Typical use |
+|---------------------------|---------------|-------------------------|-------------|
+| **`BlockId:service.path`** (contains `:` before the first `.`) | **Ref resolver** (`resolveRefPath` / `getRefValue`) | Yes — unwraps signals while walking the path | Cross-block refs, or any path that must follow signals on a service |
+| **`ref('…path…')`** (safe expression) | **Ref resolver** via `ref(...)` | Yes | Current-block paths with signals when you do not want a `BlockId:` prefix |
+| **`ServiceName.prop.nested`** (no `BlockId:`, parses as a dot expression) | **Safe expression evaluator** (member chain on `services` / `model`) | **No** — plain property access only; signal objects are not unwrapped between segments | Works when every segment is a plain object property (no signals in the middle) |
+
+**Why `WelcomeTitle:AmsService.session.user.firstName` can work while `AmsService.session.user.firstName` appears empty:** the prefixed form is handled as a **ref path** (signal-aware). The unprefixed dot form is often handled as an **expression**; if `session` (or an intermediate segment) is a signal, the evaluator reads the signal object, not its value, and deeper segments fail.
+
+**Recommendations:**
+
+- Paths with **signals** on services: use **`BlockId:service.path`** (same block is fine: `MyBlockId:AmsService.session.user.firstName`) or **`{{ ref('AmsService.session.user.firstName') }}`** on the current block.
+- Paths that are only **plain properties** on the service instance: **`{{ FormState.firstName }}`** or **`{{ AmsService.session.user.firstName }}`** when nothing in the chain is a signal.
+- Reading a service from **another** block’s instance: always use **`OtherBlockId:ServiceAlias.path`** (that block must declare the service and share the same **`BlockRegistry`**).
+
+Implementation: `template-interpolation.ts` (`evaluateExpression` → expression or `resolveReferenceValue` fallback), `ref-resolver.ts` (`getRefValue`), `safe-expression-evaluator.ts` (`ref(...)` and member chains). See also [Expression vs ref resolver in use cases](../block-directive-use-cases.md#expression-vs-ref-resolver-signals-on-services).
 
 ### Two-way refs: `[( refPath )]`
 

@@ -40,6 +40,8 @@ You can reuse a definition (`blockId`) many times; each usage can set a differen
 
 Refs appear in **`{{ path }}`** (read-only), **`[( path )]`** (two-way), and output **`reference`** fields.
 
+**`{{ }}` and signals:** A path with a **`BlockId:`** prefix (or a **`ref('path')`** expression) uses the **ref resolver** and unwraps signals along the path. A bare dot path like **`Service.a.b`** is often evaluated as a **safe expression** (plain property access), which does **not** unwrap signals between segments. See [Block loader — Expression vs ref resolver in `{{ }}` placeholders](core/block-loader.md#expression-vs-ref-resolver-in--placeholders).
+
 ### Current block
 
 - **`serviceOrModel.path`** — e.g. `FormState.firstName`, `model.title`.

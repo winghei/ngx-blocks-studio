@@ -10,9 +10,9 @@ Quick reference for how block descriptions use **bindings**, **services**, **dir
 
 ### 1.1 Literal inputs
 
-**Description:** Plain values (string, number, boolean, object, array) are set on the component (or host directive) as-is.
+**Description:** Plain values (string, number, boolean, object, array) are set on the component (or host directive) as-is when they contain **no** template strings. Objects and arrays can include nested `{{ ref('…') }}` (and flow / nested read-only `[(Service.path)]`); the loader deep-resolves those leaves inside a **`computed`** so config-style inputs stay reactive.
 
-**Use case:** Static labels, placeholders, config objects, row/column layout data.
+**Use case:** Static labels, placeholders, config objects (e.g. grid `config.data_set_id`), row/column layout data.
 
 **Demo:** All blocks use literal `inputs` (e.g. `label: 'First name'`, `html: '<h2>Login</h2>'`, `rows` arrays).  
 Files: `route-data/person-form.block.ts`, `route-data/login.block.ts`, `route-data/nav.block.ts`.
@@ -27,6 +27,22 @@ Files: `route-data/person-form.block.ts`, `route-data/login.block.ts`, `route-da
 
 **Demo:** Person form `HtmlBlock` shows `{{PersonForm:FormState.nestedSignal.sub.a}}`, `{{PersonForm:FormState.lastName}}`, `{{age}}`. Dashboard shows `{{DashboardPage:DashboardState.note}}`.  
 Files: `route-data/person-form.block.ts`, `route-data/dashboard.block.ts`.
+
+#### Expression vs ref resolver (signals on services)
+
+Inside `{{ }}`, the loader does **not** always call the same code path:
+
+| Form | Resolver | Good for |
+|------|----------|----------|
+| `{{ BlockId:Service.path }}` | Ref resolver (signal-aware) | Another block’s service, or **same** block when the path includes signals (e.g. `WelcomeTitle:AmsService.session.user.firstName`) |
+| `{{ ref('Service.path') }}` | Ref resolver (signal-aware) | Current block only; use when you want signal-aware reads without a `BlockId:` prefix |
+| `{{ Service.path.with.dots }}` | Safe expression (member chain) | Plain properties only — **not** reliable when intermediate values are Angular signals |
+
+**Symptom:** `{{ AmsService.session.user.firstName }}` is blank but `{{ WelcomeTitle:AmsService.session.user.firstName }}` works — the service likely uses signals on `session` (or similar). Prefer the **`BlockId:`** form or **`ref('…')`** for that path.
+
+**Cross-block:** A parent/sibling block has no `AmsService` on its own instance; only `WelcomeTitle:` (or the block id that owns `services: [{ id: 'AmsService' }]`) resolves the right instance.
+
+Details: [Block loader — Expression vs ref resolver in `{{ }}` placeholders](core/block-loader.md#expression-vs-ref-resolver-in--placeholders).
 
 ---
 
