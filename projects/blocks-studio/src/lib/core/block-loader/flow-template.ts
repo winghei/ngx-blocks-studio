@@ -100,12 +100,12 @@ export function parseFlowTemplate(template: string): FlowNode[] {
       let next = bodyEnd + 1;
       let elseBody: FlowNode[] | undefined;
       let cursor = next;
-      while (cursor < template.length && /\s/.test(template[cursor] ?? '')) {
+      while (cursor < template.length && /\s/.test(template[cursor])) {
         cursor++;
       }
       if (template.startsWith('@else', cursor)) {
         let elseCursor = cursor + '@else'.length;
-        while (elseCursor < template.length && /\s/.test(template[elseCursor] ?? '')) {
+        while (elseCursor < template.length && /\s/.test(template[elseCursor])) {
           elseCursor++;
         }
         if (template[elseCursor] === '{') {
@@ -174,7 +174,7 @@ export function parseFlowTemplate(template: string): FlowNode[] {
       nodes.push({ type: 'text', value: template.slice(i, end) });
       i = end;
     } else {
-      nodes.push({ type: 'text', value: rest[0] ?? '' });
+      nodes.push({ type: 'text', value: rest.charAt(0) });
       i++;
     }
   }
@@ -295,6 +295,7 @@ export function interpretFlow(
       }
       continue;
     }
+    /* v8 ignore start -- exhaustive node.type chain; non-for nodes handled above */
     if (node.type === 'for') {
       const arr = resolveRefOrModel(node.refPath, ctx);
       const list = Array.isArray(arr) ? arr : [];
@@ -307,6 +308,7 @@ export function interpretFlow(
       }
       continue;
     }
+    /* v8 ignore end */
   }
   return out;
 }

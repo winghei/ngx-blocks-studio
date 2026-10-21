@@ -37,6 +37,10 @@ import {
 } from './block-registry';
 import { ResolverContext, getRefSignal } from './ref-resolver';
 import { BlockRegistryService } from '../services/block-registry.service';
+import {
+  resolveNestedTemplateValues,
+  valueContainsMustacheInTree,
+} from './nested-template-resolve';
 import { resolveTemplateString } from './template-interpolation';
 
 export interface BlockLoadOptions {
@@ -47,7 +51,15 @@ export interface BlockLoadOptions {
 
 export const INTERPOLATE_MAX_PLACEHOLDERS = 200;
 
-function createInputBindingsWithWarnings(
+/** Builds a two-way binding when only a read getter exists for the key (used by {@link createInputBindingsWithWarnings}). */
+export function linkedTwoWayFromInputGetter(
+  resolvedInputs: Record<string, (() => unknown) | undefined>,
+  key: string,
+): WritableSignal<unknown> {
+  return linkedSignal(() => resolvedInputs[key]?.());
+}
+
+export function createInputBindingsWithWarnings(
   ownerName: string,
   inputKeys: Set<string>,
   twoWayKeys: Set<string>,
@@ -77,7 +89,7 @@ function createInputBindingsWithWarnings(
       twoWayBinding(
         key,
         (resolvedTwoWay[key] ??
-          linkedSignal(() => resolvedInputs[key]?.())) as WritableSignal<unknown>,
+          linkedTwoWayFromInputGetter(resolvedInputs, key)) as WritableSignal<unknown>,
       ),
     );
 
@@ -91,14 +103,6 @@ function createInputBindingsWithWarnings(
     .map((key) => outputBinding(key, resolvedOutputs[key]));
 
   return [...inputBindingsArray, ...twoWayBindingsArray, ...outputBindingsArray];
-}
-
-/** JSON-like objects only — skip class instances, Date, Map, etc. */
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  if (value === null || typeof value !== 'object') return false;
-  if (Array.isArray(value)) return false;
-  const proto = Object.getPrototypeOf(value);
-  return proto === null || proto === Object.prototype;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -354,12 +358,15 @@ export class BlockLoaderService {
         }
       }
     } else {
-      const hasTemplates = this.valueContainsTemplate(directiveModel);
+      const hasTemplates = valueContainsMustacheInTree(directiveModel);
       blockInstanceModel = hasTemplates
         ? linkedSignal(() =>
-            this.resolveNestedModelTemplates(
+            resolveNestedTemplateValues(
               blockModel(),
               this.withModelOverrideContext(ctx, blockModel),
+              'model',
+              new WeakSet(),
+              { resolveTwoWayStringsAsReadonly: false },
             ),
           )
         : blockModel;
@@ -373,47 +380,6 @@ export class BlockLoaderService {
       }
       blockInstance.model = blockInstanceModel;
     }
-  }
-
-  private valueContainsTemplate(value: unknown, visited: WeakSet<object> = new WeakSet()): boolean {
-    if (typeof value === 'string') {
-      return value.includes('{{') && value.includes('}}');
-    }
-    if (Array.isArray(value)) {
-      return value.some((item) => this.valueContainsTemplate(item, visited));
-    }
-    if (value != null && typeof value === 'object') {
-      if (!isPlainObject(value)) return false;
-      if (visited.has(value)) return false;
-      visited.add(value);
-      return Object.values(value).some((item) => this.valueContainsTemplate(item, visited));
-    }
-    return false;
-  }
-
-  private resolveNestedModelTemplates(
-    value: unknown,
-    ctx: ResolverContext,
-    visited: WeakSet<object> = new WeakSet(),
-  ): unknown {
-    if (typeof value === 'string') {
-      return resolveTemplateString(value, ctx);
-    }
-    if (Array.isArray(value)) {
-      return value.map((item) => this.resolveNestedModelTemplates(item, ctx, visited));
-    }
-    if (value != null && typeof value === 'object') {
-      if (!isPlainObject(value)) return value;
-      if (visited.has(value)) return value;
-      visited.add(value);
-      return Object.fromEntries(
-        Object.entries(value).map(([key, item]) => [
-          key,
-          this.resolveNestedModelTemplates(item, ctx, visited),
-        ]),
-      );
-    }
-    return value;
   }
 
   private withModelOverrideContext(

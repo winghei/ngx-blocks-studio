@@ -11,7 +11,17 @@ import { BlockDescription } from './block-description.schema';
 import { createOutputHandler } from './output-reference';
 import { classifyTwoWayString, parseTwoWayRef } from './ref-expressions';
 import { getRefSignal, ResolverContext } from './ref-resolver';
+import {
+  isPlainObject,
+  resolveNestedTemplateValues,
+  valueNeedsInputResolve,
+} from './nested-template-resolve';
 import { looksLikeFlowTemplate, resolveTemplateString } from './template-interpolation';
+
+const NESTED_INPUT_RESOLVE_OPTIONS = {
+  resolveTwoWayStringsAsReadonly: true,
+  escapeFlowRefs: true,
+} as const;
 
 export function getBlockInputsAndOutputs(componentOrDirectives: any[]): {
   inputs: Set<string>;
@@ -174,17 +184,21 @@ export function resolveBlockInputsAndOutputs(
       }
     }
 
-    if (Array.isArray(value)) {
-      resolvedInputs[key] = computed(() =>
-        value.map((item) => {
-          if (typeof item === 'string') {
-            return resolveTemplateString(item, ctx, undefined, { escapeFlowRefs: true });
-          }
-
-          return item;
-        }),
-      );
-
+    if (Array.isArray(value) || isPlainObject(value)) {
+      if (valueNeedsInputResolve(value)) {
+        resolvedInputs[key] = computed(() =>
+          resolveNestedTemplateValues(
+            value,
+            ctx,
+            key,
+            new WeakSet(),
+            NESTED_INPUT_RESOLVE_OPTIONS,
+          ),
+        );
+      } else if (inputKeys.has(key)) {
+        resolvedInputs[key] = () => value;
+      }
+      if (twoWayKeys.has(key)) resolvedTwoWay[key] = signal(value);
       continue;
     }
 

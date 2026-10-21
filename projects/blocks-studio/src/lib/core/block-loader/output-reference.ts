@@ -227,14 +227,19 @@ function runThenChain(
 }
 
 function runOnError(def: OutputCallObject, ctx: ResolverContext, payload: unknown): void {
-  if (def.onError && shouldRunWhen(def.onError.when, ctx, payload)) {
-    invokeRefMethod(
-      ctx,
-      def.onError.ref,
-      payload,
-      resolveStepParams(def.onError.params, ctx, payload),
-    );
+  const onError = def.onError;
+  if (onError == null) {
+    return;
   }
+  if (!shouldRunWhen(onError.when, ctx, payload)) {
+    return;
+  }
+  invokeRefMethod(
+    ctx,
+    onError.ref,
+    payload,
+    resolveStepParams(onError.params, ctx, payload),
+  );
 }
 
 function invokeRefMethod(

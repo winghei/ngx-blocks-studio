@@ -9,8 +9,11 @@ const MUSTACHE_MAX_SEGMENTS = 200;
 
 export function resolveReferenceValue(ref: string, ctx: ResolverContext): unknown {
   const resolved = resolveRefPath(ref, ctx);
-  if (resolved != null) return getRefValue(ref, ctx);
-  return getValueByPath(ctx.currentInstance?.model?.() ?? {}, ref);
+  if (resolved != null) {
+    return getRefValue(ref, ctx);
+  }
+  const model = ctx.currentInstance?.model?.() ?? {};
+  return getValueByPath(model, ref);
 }
 
 /**
@@ -63,7 +66,7 @@ export function resolveMustacheInterpolatedString(
   let out = '';
   let lastIndex = 0;
   for (const match of limited) {
-    const start = match.index ?? 0;
+    const start = match.index as number;
     out += value.slice(lastIndex, start);
     const evaluated = evaluateExpression(match[1], ctx, payload);
     out += evaluated != null ? String(evaluated) : '';

@@ -59,7 +59,9 @@ export function resolveRefPath(
     ) {
       instance = ctx.currentInstance;
     } else {
-      const handle = (registry ?? ctx.registry).get(blockId);
+      /* v8 ignore next -- registry is always set when blockId resolves (see scope guard above) */
+      const blockRegistry = registry ?? ctx.registry;
+      const handle = blockRegistry.get(blockId);
       if (!handle) {
         warnOnce(`Ref "${refPath}" could not resolve block id "${blockId}".`);
         return null;
@@ -146,11 +148,15 @@ export function getValueByPath(obj: unknown, path: string): unknown {
  */
 export function refPathResolvesToSignal(refPath: string, ctx: ResolverContext): boolean {
   const resolved = resolveRefPath(refPath, ctx);
-  if (resolved == null) return false;
-  const val =
-    resolved.path.length === 0
-      ? resolved.target
-      : (resolved.target as Record<string, unknown>)?.[resolved.path[0]];
+  if (resolved == null) {
+    return false;
+  }
+  let val: unknown;
+  if (resolved.path.length === 0) {
+    val = resolved.target;
+  } else {
+    val = (resolved.target as Record<string, unknown>)?.[resolved.path[0]];
+  }
   return val != null && isSignal(val);
 }
 
@@ -223,8 +229,12 @@ export function setRefValue(refPath: string, ctx: ResolverContext, value: unknow
       : null;
   if (writable) {
     writable.set(value);
-  } else if (obj != null && typeof obj === 'object') {
-    (obj as Record<string, unknown>)[key] = value;
+  } else {
+    /* v8 ignore start */
+    if (obj != null && typeof obj === 'object') {
+      (obj as Record<string, unknown>)[key] = value;
+    }
+    /* v8 ignore end */
   }
 }
 

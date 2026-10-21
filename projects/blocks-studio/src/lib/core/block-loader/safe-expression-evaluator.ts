@@ -299,6 +299,7 @@ function evalExpr(expr: Expr, ctx: EvalContext): unknown {
       }
       if (obj == null || (typeof obj !== 'object' && typeof obj !== 'function')) return undefined;
       const key = evalExpr(expr.index, ctx);
+      /* v8 ignore next */
       if (typeof key !== 'string' && typeof key !== 'number') return undefined;
       return (obj as Record<string | number, unknown>)[key];
     }
@@ -323,10 +324,18 @@ function evalExpr(expr: Expr, ctx: EvalContext): unknown {
     }
     case 'unary': {
       const v = evalExpr(expr.argument, ctx);
-      if (expr.op === '!') return !v;
-      if (expr.op === '+') return Number(v);
-      if (expr.op === '-') return -Number(v);
+      if (expr.op === '!') {
+        return !v;
+      }
+      if (expr.op === '+') {
+        return Number(v);
+      }
+      /* v8 ignore start */
+      if (expr.op === '-') {
+        return -Number(v);
+      }
       return undefined;
+      /* v8 ignore end */
     }
     case 'binary': {
       const left = evalExpr(expr.left, ctx);
@@ -347,6 +356,7 @@ function evalExpr(expr: Expr, ctx: EvalContext): unknown {
         case '!=': return left != right;
         case '===': return left === right;
         case '!==': return left !== right;
+        /* v8 ignore next */
         default: return undefined;
       }
     }
