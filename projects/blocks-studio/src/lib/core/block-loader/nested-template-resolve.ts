@@ -11,6 +11,41 @@ export function isPlainObject(value: unknown): value is Record<string, unknown> 
   return proto === null || proto === Object.prototype;
 }
 
+function looksLikeBlockIdReference(value: Record<string, unknown>): boolean {
+  if (value['component'] != null) return false;
+  const blockId = value['blockId'];
+  if (typeof blockId === 'string' && blockId.length > 0) {
+    return true;
+  }
+  const id = value['id'];
+  if (typeof id !== 'string' || id.length === 0) {
+    return false;
+  }
+  if ('blockDefinition' in value) {
+    return true;
+  }
+  const keys = Object.keys(value);
+  if (keys.length !== 1 || keys[0] !== 'id') {
+    return false;
+  }
+  return !id.includes('{{') && !id.includes('[(');
+}
+
+/**
+ * Child block entry in a parent input tree (`blocks`, `rows`, `columns`, etc.).
+ * Template refs inside these objects are resolved when that block is loaded, not on the parent.
+ */
+export function looksLikeBlockDescriptor(value: unknown): boolean {
+  if (!isPlainObject(value)) return false;
+  if (typeof value['component'] === 'string' && isPlainObject(value['inputs'])) {
+    return true;
+  }
+  return looksLikeBlockIdReference(value);
+}
+
+/** Same as {@link looksLikeBlockDescriptor}; use in custom layout blocks if needed. */
+export const shouldDeferInputTemplateResolution = looksLikeBlockDescriptor;
+
 function stringNeedsInputResolve(s: string): boolean {
   if (classifyTwoWayString(s) !== 'none') return true;
   if (s.includes('{{') && s.includes('}}')) return true;
@@ -31,6 +66,7 @@ export function valueNeedsInputResolve(
   }
   if (value != null && typeof value === 'object') {
     if (!isPlainObject(value)) return false;
+    if (looksLikeBlockDescriptor(value)) return false;
     if (visited.has(value)) return false;
     visited.add(value);
     return Object.values(value).some((item) => valueNeedsInputResolve(item, visited));
@@ -51,6 +87,7 @@ export function valueContainsMustacheInTree(
   }
   if (value != null && typeof value === 'object') {
     if (!isPlainObject(value)) return false;
+    if (looksLikeBlockDescriptor(value)) return false;
     if (visited.has(value)) return false;
     visited.add(value);
     return Object.values(value).some((item) => valueContainsMustacheInTree(item, visited));
@@ -112,6 +149,7 @@ export function resolveNestedTemplateValues(
   }
   if (value != null && typeof value === 'object') {
     if (!isPlainObject(value)) return value;
+    if (looksLikeBlockDescriptor(value)) return value;
     if (visited.has(value)) return value;
     visited.add(value);
     return Object.fromEntries(

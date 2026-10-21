@@ -7,3 +7,4 @@ export * from './template-interpolation';
 export * from './output-reference';
 export * from './block-loader.service';
 export * from './block.directive';
+export * from './nested-template-resolve';
