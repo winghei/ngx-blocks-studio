@@ -3,6 +3,46 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.2.0] - 2026-10-21
+
+
+## ✨ Features
+
+- Introduce nested template resolution and enhance block directive functionality ([1469d27b](../../commit/1469d27bab9e1ca1866f027b59e637d1170f9351))
+
+  - Added new utility functions for resolving nested template values and detecting input resolution needs in block directives.
+- Enhance block input/output handling and add tests ([9b174d2c](../../commit/9b174d2c923138992185ceeb9eca646a0029084e))
+
+  - Introduced new utility functions for improved detection of two-way inputs in Angular components.
+
+## 🐛 Bug Fixes
+
+- Improve two-way input detection and validation in block directives ([ff25a45a](../../commit/ff25a45a4a63462badb4512374bc51560a767ffe))
+
+  - Updated `isTwoWayInput` function to streamline the logic for identifying two-way inputs based on output keys.
+
+## 📚 Documentation
+
+- Clarify block directive usage and input resolution details ([b86a927c](../../commit/b86a927c481b1245577414a6a5e5bb8a2b66b6a1))
+
+  - Enhanced descriptions for literal inputs and use cases in block directive documentation.
+
+## 🧪 Tests
+
+- Enhance block directive testing and coverage capabilities ([df686aaa](../../commit/df686aaab598bbeaa0b63dacd9d4ea200b981a20))
+
+  - Added new tests for block directive functionality, including input/output resolution and nested template handling.
+
+## 🔧 Chores
+
+- bump version to 0.2.0 in package.json ([13df3e95](../../commit/13df3e95ce19f990e430c0dcbf5c717655ab4e92))
+
+  - Updated version from 0.1.1 to 0.2.0 to reflect new changes and improvements.
+- Update Angular dependencies to version 22.2.3 in package.json and package-lock.json ([bee50a96](../../commit/bee50a964afef47fcf2a5fe303471a9d93f16514))
+
+  - Bump Angular packages to the latest version for improved performance and security.
+
+
 ## [0.1.1] - 2026-07-19
 
 
