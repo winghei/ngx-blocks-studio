@@ -49,6 +49,18 @@ describe('getBlockInputsAndOutputs', () => {
     expect(meta.inputs.has('ariaLabel')).toBe(true);
     expect(meta.outputs.has('activated')).toBe(true);
   });
+
+  it('does not treat signal inputs without *Change as two-way', () => {
+    class HostStyleLike {}
+    (HostStyleLike as unknown as { ɵdir: { inputs: Record<string, unknown>; outputs: Record<string, string> } }).ɵdir =
+      {
+        inputs: { style: ['style', true] },
+        outputs: {},
+      };
+    const meta = getBlockInputsAndOutputs([HostStyleLike as never]);
+    expect(meta.twoWay.has('style')).toBe(false);
+    expect(meta.inputs.has('style')).toBe(true);
+  });
 });
 
 describe('resolveBlockInputsAndOutputs', () => {

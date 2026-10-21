@@ -45,18 +45,16 @@ export function getBlockInputsAndOutputs(componentOrDirectives: any[]): {
 function isTwoWayInput(
   publicName: string,
   publicOutputKeys: Set<string>,
-  inputDef: unknown,
+  _inputDef: unknown,
   outputsRecord?: Record<string, unknown>,
 ): boolean {
-  if (publicOutputKeys.has(`${publicName}Change`)) {
-    return true;
-  }
+  const changeOutputName = `${publicName}Change`;
   // model(): def.outputs is { value: 'valueChange' } (key = input name, not *Change)
-  if (outputsRecord?.[publicName] === `${publicName}Change`) {
+  if (outputsRecord?.[publicName] === changeOutputName) {
     return true;
   }
-  // model() and other compiler-marked two-way signal inputs (see def.inputs[name][1])
-  return Array.isArray(inputDef) && !!inputDef[1];
+  // @Input + @Output *Change, or signal/model inputs with a public *Change output
+  return publicOutputKeys.has(changeOutputName);
 }
 
 type AngularTypeDef = {

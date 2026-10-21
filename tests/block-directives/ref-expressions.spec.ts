@@ -135,9 +135,10 @@ describe('ref-expressions', () => {
       expect(classifyTwoWayString(42)).toBe('none');
     });
 
-    it('returns invalid-mix when string ends with )]', () => {
-      expect(classifyTwoWayString('fn(x)]')).toBe('invalid-mix');
+    it('returns none for )] without two-way opener (Tailwind, CSS, etc.)', () => {
+      expect(classifyTwoWayString('fn(x)]')).toBe('none');
       expect(classifyTwoWayString('foo)]bar')).toBe('none');
+      expect(classifyTwoWayString('grid-rows-[auto_minmax(0,1fr)]')).toBe('none');
     });
   });
 

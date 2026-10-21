@@ -78,8 +78,9 @@ describe('resolveNestedTemplateValues', () => {
     expect(valueContainsMustacheInTree([1])).toBe(false);
   });
 
-  it('valueNeedsInputResolve is true for strings that look like partial two-way refs', () => {
-    expect(valueNeedsInputResolve('value)]')).toBe(true);
+  it('valueNeedsInputResolve is true for strings that start a two-way ref', () => {
+    expect(valueNeedsInputResolve('[(FormState.x)] extra')).toBe(true);
+    expect(valueNeedsInputResolve('grid-rows-[auto_minmax(0,1fr)]')).toBe(false);
   });
 
   it('detects flow templates in valueNeedsInputResolve', () => {

@@ -82,14 +82,14 @@ export function isTwoWayRefString(value: unknown): value is string {
 }
 
 /**
- * True when a string contains two-way ref delimiters `[(` or `)]` but is not a valid
- * standalone two-way ref (exact form `[(refPath)]`). Mixing two-way with literals or {{ }} is invalid.
+ * True when a string contains the two-way ref opener `[(` but is not a valid standalone
+ * two-way ref (exact form `[(refPath)]`). Mixing two-way with literals or {{ }} is invalid.
+ * Plain `)]` substrings (e.g. Tailwind `minmax(0,1fr)]`) are not treated as two-way syntax.
  */
 export function isInvalidTwoWayMix(value: unknown): value is string {
   if (typeof value !== 'string') return false;
   const s = value.trim();
-  const hasDelimiters = s.includes('[(') || s.includes(')]');
-  return hasDelimiters && !TWOWAY_REF_RE.test(s);
+  return s.includes('[(') && !TWOWAY_REF_RE.test(s);
 }
 
 /**
@@ -100,17 +100,7 @@ export function classifyTwoWayString(value: unknown): 'two-way' | 'invalid-mix' 
   if (typeof value !== 'string') return 'none';
   const s = value.trim();
   if (TWOWAY_REF_RE.test(s)) return 'two-way';
-
-  const hasOpen = s.includes('[(');
-  const hasClose = s.includes(')]');
-  if (!hasOpen && !hasClose) return 'none';
-
-  // Only treat as invalid mix when the string looks like an attempted two-way ref
-  // wrapper, not when it contains ")]" from normal indexing/calls inside templates.
-  if ((hasOpen && hasClose) || s.startsWith('[(') || s.endsWith(')]')) {
-    return 'invalid-mix';
-  }
-
+  if (s.includes('[(')) return 'invalid-mix';
   return 'none';
 }
 
