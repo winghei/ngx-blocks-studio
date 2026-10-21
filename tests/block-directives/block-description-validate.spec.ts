@@ -50,6 +50,27 @@ describe('safeParseBlockDescription', () => {
     if (result.success) expect(result.data.outputs?.['save']).toBe('Block:Svc.path.method');
   });
 
+  it('accepts output params as record or array and nested then on steps', () => {
+    expect(
+      safeParseBlockDescription({
+        component: 'C',
+        outputs: {
+          o: {
+            ref: 'Block:A.b.m',
+            params: { k: 1 },
+            then: [
+              {
+                ref: 'Block:B.c.d',
+                params: ['step'],
+                then: [{ ref: 'Block:C.d.e', params: { nested: true } }],
+              },
+            ],
+          },
+        },
+      }).success,
+    ).toBe(true);
+  });
+
   it('accepts nested then chain and onError on output object', () => {
     const result = safeParseBlockDescription({
       component: 'C',
@@ -158,9 +179,24 @@ describe('safeParseBlockDescription', () => {
         'params must be array or record',
       ],
       [{ ref: 'Block:A.b.m', then: 'x' as never }, 'then must be an array'],
+      [
+        {
+          ref: 'Block:A.b.m',
+          then: [{ ref: 'Block:B.c.d', then: 'nested-not-array' as never }],
+        },
+        '.then must be an array',
+      ],
       [{ ref: 'Block:A.b.m', then: [{ ref: '' }] }, 'then step object requires ref'],
       [{ ref: 'Block:A.b.m', onError: [] as never }, 'invalid onError'],
       [{ ref: 'Block:A.b.m', onError: {} }, 'onError requires ref'],
+      [
+        {
+          ref: 'Block:A.b.m',
+          then: [{ ref: 'Block:B.c.d', then: [{ ref: '' }] }],
+        },
+        'then[0].then[0]',
+      ],
+      [{ ref: 'Block:A.b.m', then: [123] }, 'invalid then step'],
     ] as const)('fails invalid output object branch', (outputs, sub) => {
       const r = safeParseBlockDescription({ component: 'C', outputs: { o: outputs } });
       expect(r.success).toBe(false);

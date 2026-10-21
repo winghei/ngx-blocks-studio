@@ -10,6 +10,14 @@ From the repository root:
 npm run test:block-directives
 ```
 
+Coverage (lines, branches, functions, statements) for `projects/blocks-studio/src/lib` (excluding `index.ts` and `*.types.ts`):
+
+```bash
+npm run test:block-directives:coverage
+```
+
+HTML report: `coverage/block-directives/index.html`
+
 Or with Vitest directly:
 
 ```bash
@@ -25,7 +33,10 @@ npx vitest run --config tests/block-directives/vitest.config.ts
 | `block-registry.spec.ts` | `BlockRegistryImpl` (register, get, has, unregister, duplicate id) |
 | `ref-expressions.spec.ts` | `parseRefPath`, `extractReadonlyRefs`, `isTwoWayRefString`, `classifyTwoWayString`, `parseTwoWayRef` |
 | `block-loader.service.spec.ts` | `BlockLoaderService.load` (minimal load, inputs, block reference, duplicate id, updateInputs) |
-| `block.directive.spec.ts` | `BlockDirective` (host renders, description accepted, clear on null) |
+| `block.directive.spec.ts` | `BlockDirective` (host smoke tests) |
+| `block-directive-effect.spec.ts` | `runBlockDirectiveEffect`, `clearBlockDirective` (load, reloadKey, block refs, errors) |
+| `block-directive-keys.spec.ts` | `getServicesKey`, `safeJsonKey` |
+| `block-bindings.spec.ts` | `getBlockInputsAndOutputs`, `resolveBlockInputsAndOutputs` (host directives, nested inputs) |
 
 ## Setup
 

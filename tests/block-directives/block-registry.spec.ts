@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { BlockRegistryImpl } from '../../projects/blocks-studio/src/lib/core/block-loader/block-registry';
+import {
+  BlockRegistryImpl,
+  ChainedBlockRegistry,
+} from '../../projects/blocks-studio/src/lib/core/block-loader/block-registry';
 
 describe('BlockRegistryImpl', () => {
   it('starts empty', () => {
@@ -38,5 +41,25 @@ describe('BlockRegistryImpl', () => {
     reg.unregister('Z');
     reg.register('Z', { instance: { v: 2 } });
     expect(reg.get('Z')?.instance).toEqual({ v: 2 });
+  });
+});
+
+describe('ChainedBlockRegistry', () => {
+  it('delegates register/unregister to local only', () => {
+    const parent = new BlockRegistryImpl();
+    const local = new BlockRegistryImpl();
+    const chain = new ChainedBlockRegistry(local, parent);
+    parent.register('P', { instance: { services: {} } });
+    chain.register('L', { instance: { services: {} } });
+    expect(chain.get('P')?.instance).toEqual({ services: {} });
+    expect(chain.has('P')).toBe(true);
+    expect(chain.hasLocal('P')).toBe(false);
+    chain.unregister('L');
+    expect(chain.get('L')).toBeUndefined();
+  });
+
+  it('has returns false without parent match', () => {
+    const chain = new ChainedBlockRegistry(new BlockRegistryImpl(), null);
+    expect(chain.has('x')).toBe(false);
   });
 });

@@ -163,6 +163,14 @@ describe('block-description.schema', () => {
       expect((result as { inputs?: { initial?: boolean } }).inputs?.['initial']).toBe(true);
     });
 
+    it('applies ref.id onto resolved definition', async () => {
+      const result = await resolveBlockReference(
+        { blockId: 'TestBlock', id: 'InstanceId' } as BlockReference,
+        {},
+      );
+      expect(result['id']).toBe('InstanceId');
+    });
+
     it('merges blockDefinition override onto base', async () => {
       const result = await resolveBlockReference(
         {

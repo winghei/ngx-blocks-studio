@@ -6,6 +6,7 @@ import {
   isInvalidTwoWayMix,
   classifyTwoWayString,
   parseTwoWayRef,
+  getRefPathFromReadonly,
 } from '../../projects/blocks-studio/src/lib/core/block-loader/ref-expressions';
 
 describe('ref-expressions', () => {
@@ -19,6 +20,15 @@ describe('ref-expressions', () => {
       expect(parseRefPath('FormState.firstName')).toEqual({
         serviceOrModel: 'FormState',
         pathParts: ['firstName'],
+      });
+    });
+
+    it('parses scoped block path', () => {
+      expect(parseRefPath('Scope/Block:model.x')).toEqual({
+        scopeKey: 'Scope',
+        blockId: 'Block',
+        serviceOrModel: 'model',
+        pathParts: ['x'],
       });
     });
 
@@ -48,6 +58,10 @@ describe('ref-expressions', () => {
 
     it('throws for invalid block id (with dot)', () => {
       expect(() => parseRefPath('a.b:c')).toThrow('Invalid block id');
+    });
+
+    it('throws when scoped block id is empty', () => {
+      expect(() => parseRefPath('Scope/:model.x')).toThrow('Invalid block id');
     });
   });
 
@@ -93,6 +107,16 @@ describe('ref-expressions', () => {
     });
   });
 
+  describe('isInvalidTwoWayMix', () => {
+    it('is true when delimiters appear without a full two-way ref', () => {
+      expect(isInvalidTwoWayMix('[(only-open')).toBe(true);
+    });
+
+    it('is false for a valid standalone two-way ref', () => {
+      expect(isInvalidTwoWayMix('[(FormState.x)]')).toBe(false);
+    });
+  });
+
   describe('classifyTwoWayString', () => {
     it('returns "two-way" for exact [( refPath )]', () => {
       expect(classifyTwoWayString('[(FormState.x)]')).toBe('two-way');
@@ -109,6 +133,21 @@ describe('ref-expressions', () => {
 
     it('returns "none" for non-string', () => {
       expect(classifyTwoWayString(42)).toBe('none');
+    });
+
+    it('returns invalid-mix when string ends with )]', () => {
+      expect(classifyTwoWayString('fn(x)]')).toBe('invalid-mix');
+      expect(classifyTwoWayString('foo)]bar')).toBe('none');
+    });
+  });
+
+  describe('getRefPathFromReadonly', () => {
+    it('returns match when placeholder exists', () => {
+      expect(getRefPathFromReadonly('{{ a }}', ' a ')).toBe(' a ');
+    });
+
+    it('returns empty when no match', () => {
+      expect(getRefPathFromReadonly('plain', 'x')).toBe('');
     });
   });
 
