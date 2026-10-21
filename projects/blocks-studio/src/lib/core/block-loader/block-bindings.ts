@@ -1,4 +1,12 @@
-import { computed, isWritableSignal, linkedSignal, signal, WritableSignal } from '@angular/core';
+import {
+  computed,
+  isWritableSignal,
+  linkedSignal,
+  reflectComponentType,
+  signal,
+  type Type,
+  WritableSignal,
+} from '@angular/core';
 import { BlockDescription } from './block-description.schema';
 import { createOutputHandler } from './output-reference';
 import { classifyTwoWayString, parseTwoWayRef } from './ref-expressions';
@@ -24,27 +32,75 @@ export function getBlockInputsAndOutputs(componentOrDirectives: any[]): {
   return { inputs, outputs, twoWay };
 }
 
-function getDirectiveMetadata(type: any) {
-  // Directives have ɵdir, Components have ɵcmp
-  const def = type.ɵdir || type.ɵcmp;
+function isTwoWayInput(
+  publicName: string,
+  publicOutputKeys: Set<string>,
+  inputDef: unknown,
+  outputsRecord?: Record<string, unknown>,
+): boolean {
+  if (publicOutputKeys.has(`${publicName}Change`)) {
+    return true;
+  }
+  // model(): def.outputs is { value: 'valueChange' } (key = input name, not *Change)
+  if (outputsRecord?.[publicName] === `${publicName}Change`) {
+    return true;
+  }
+  // model() and other compiler-marked two-way signal inputs (see def.inputs[name][1])
+  return Array.isArray(inputDef) && !!inputDef[1];
+}
+
+type AngularTypeDef = {
+  inputs?: Record<string, unknown>;
+  outputs?: Record<string, unknown>;
+};
+
+/** Angular attaches `ɵcmp` / `ɵdir` at runtime; not on public `Type`. */
+type TypeWithAngularDef = Type<unknown> & {
+  ɵdir?: AngularTypeDef;
+  ɵcmp?: AngularTypeDef;
+};
+
+function getDirectiveMetadata(type: Type<unknown>) {
+  const angularType = type as TypeWithAngularDef;
+
+  if (angularType.ɵcmp) {
+    const mirror = reflectComponentType(type);
+    if (mirror != null && mirror.inputs.length > 0) {
+      const outputNames = new Set(mirror.outputs.map((o) => o.templateName));
+      const twoWay: string[] = [];
+      const inputs: string[] = [];
+      for (const inp of mirror.inputs) {
+        const name = inp.templateName;
+        if (isTwoWayInput(name, outputNames, null, undefined)) {
+          twoWay.push(name);
+        } else {
+          inputs.push(name);
+        }
+      }
+      const outputs = mirror.outputs.map((o) => o.templateName);
+      return { inputs, outputs, twoWay, isComponent: true };
+    }
+  }
+
+  // Directives have ɵdir, Components have ɵcmp (fallback when mirror is empty)
+  const def = angularType.ɵdir || angularType.ɵcmp;
 
   if (!def) return null;
 
-  // def.inputs and def.outputs are objects where:
-  // Key = Public Template Name (alias)
-  // Value = Internal Class Property Name
-  const publicInputs = Object.keys(def.inputs || {});
-  const publicOutputs = Object.keys(def.outputs || {});
+  const inputsRecord = def.inputs || {};
+  const outputsRecord = def.outputs || {};
+  const publicInputs = Object.keys(inputsRecord);
+  const publicOutputs = new Set(Object.keys(outputsRecord));
 
-  const twoWay = publicInputs.filter(
-    (key) => publicOutputs.includes(`${key}Change`) && def.inputs[key][1],
+  const twoWay = publicInputs.filter((key) =>
+    isTwoWayInput(key, publicOutputs, inputsRecord[key], outputsRecord),
   );
 
   return {
     inputs: publicInputs.filter((key) => !twoWay.includes(key)),
-    outputs: publicOutputs.filter((key) => !twoWay.includes(key)),
+    outputs: [...publicOutputs].filter((key) => !twoWay.includes(key)),
     twoWay,
-    isComponent: !!type.ɵcmp,
+    isComponent: !!angularType.ɵcmp,
   };
 }
 
